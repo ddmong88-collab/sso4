@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>선행연구 분석 수행평가</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+</head>
+<body>
+<div id="demoBanner" class="demo-banner hidden">데모 모드입니다. 답안은 이 브라우저에만 저장됩니다. (config.js에 Firebase 설정을 넣으면 실제 모드로 바뀝니다)</div>
+
+<header class="topbar">
+  <div class="logo">탐</div>
+  <div class="title" id="topTitle">선행연구 분석 수행평가<small id="topSub"></small></div>
+  <div class="spacer"></div>
+  <span id="formChip" class="chip hidden"></span>
+  <span id="studentChip" class="chip hidden"></span>
+  <span id="saveChip" class="chip hidden">저장됨</span>
+</header>
+<div id="leaveBanner" class="leave-banner hidden"></div>
+
+<!-- 1. 로그인 -->
+<section id="scrLogin" class="center-wrap">
+  <form class="card login-card" id="loginForm" autocomplete="off">
+    <h1>수행평가 입장</h1>
+    <p class="sub" id="loginSub"></p>
+    <div class="field">
+      <label for="sid">학번 (5자리)</label>
+      <input class="input" id="sid" inputmode="numeric" maxlength="5" placeholder="예: 10312 (1학년 3반 12번)" required>
+    </div>
+    <div class="field">
+      <label for="sname">이름</label>
+      <input class="input" id="sname" maxlength="20" placeholder="이름" required>
+    </div>
+    <button class="btn primary" style="width:100%;padding:10px" type="submit" id="loginBtn">입장하기</button>
+    <div class="err" id="loginErr"></div>
+    <div class="notice">
+      <b>안내</b><br>
+      · 반별로 배정된 논문이 자동으로 열립니다.<br>
+      · 답안은 입력하는 대로 자동 저장됩니다.<br>
+      · 시험 중 다른 창이나 탭으로 이동하면 기록이 남습니다.<br>
+      · AI가 대신 작성한 답안은 부정행위로 처리되며, 교사 질문에 답하지 못하면 채점에서 제외될 수 있습니다.
+    </div>
+  </form>
+</section>
+
+<!-- 2. 대기·안내 메시지 -->
+<section id="scrMsg" class="center-wrap hidden">
+  <div class="card msg-card">
+    <div id="msgIcon"></div>
+    <h2 id="msgTitle"></h2>
+    <p id="msgBody"></p>
+    <div style="margin-top:16px"><button class="btn" id="msgBack">처음으로</button></div>
+  </div>
+</section>
+
+<!-- 3. 시험 화면 -->
+<div class="mobile-tabs hidden" id="mobileTabs">
+  <button class="btn on" data-tab="paper">논문 보기</button>
+  <button class="btn" data-tab="answer">답안 작성</button>
+</div>
+<section id="scrExam" class="exam hidden" data-tab="paper">
+  <div class="pane pdf-pane">
+    <div class="viewer-bar">
+      <button class="btn icon" id="pgPrev" title="이전 쪽 (←)">◀</button>
+      <input class="input pg" id="pgNum" value="1" inputmode="numeric">
+      <span style="color:var(--ink-3);font-size:13.5px">/ <span id="pgTotal">-</span></span>
+      <button class="btn icon" id="pgNext" title="다음 쪽 (→)">▶</button>
+      <span class="sep"></span>
+      <button class="btn icon" id="zOut" title="축소">−</button>
+      <span class="zoom" id="zVal">100%</span>
+      <button class="btn icon" id="zIn" title="확대">+</button>
+      <button class="btn sm" id="zFit">폭 맞춤</button>
+      <span class="sep"></span>
+      <button class="btn sm" id="goFocus">지정 실험으로</button>
+    </div>
+    <div class="pdf-scroll" id="pdfScroll"><div class="pdf-state" id="pdfState">논문을 여는 중...</div><canvas id="pdfCanvas" class="hidden"></canvas></div>
+  </div>
+  <div class="divider" id="divider"></div>
+  <div class="pane answer-pane">
+    <div class="answer-head">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap">
+        <b style="font-size:14px">답안 작성 <span id="doneCount" style="color:var(--ink-3);font-weight:600"></span></b>
+        <button class="btn primary sm" id="submitTop">제출하기</button>
+      </div>
+      <div class="progress-nav" id="progressNav"></div>
+    </div>
+    <div class="answer-scroll" id="answerScroll">
+      <div class="card paper-card" id="paperCard"></div>
+      <div id="qList"></div>
+      <div class="card submit-bar">
+        <span style="font-size:13.5px;color:var(--ink-2)">모든 문항을 확인한 뒤 제출하세요. 제출 후에는 수정할 수 없습니다.</span>
+        <button class="btn primary" id="submitBottom">제출하기</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="modalRoot"></div>
+
+<script>
+(function () {
+  const C = window.EXAM_CONFIG, S = window.Store, U = window.ExamUtil;
+  const $ = (id) => document.getElementById(id);
+  const show = (id) => ["scrLogin", "scrMsg", "scrExam"].forEach((s) => $(s).classList.toggle("hidden", s !== id));
+  if (S.isDemo) { $("demoBanner").classList.remove("hidden"); document.body.classList.add("demo-on"); }
+  $("topTitle").firstChild.textContent = C.examTitle;
+  $("topSub").textContent = C.examSubtitle;
+  $("loginSub").textContent = C.examSubtitle;
+
+  const st = { sid: null, name: "", cls: 0, no: 0, form: null, rec: null, answers: {}, locked: false, submitted: false, unsubs: [], leave: 0, settings: {} };
+
+  function toast(msg, ms) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2600); }
+  function message(icon, title, body, canBack) {
+    $("msgIcon").innerHTML = icon === "spin" ? '<div class="spinner"></div>' : '<div class="big">' + icon + "</div>";
+    $("msgTitle").textContent = title; $("msgBody").innerHTML = body;
+    $("msgBack").classList.toggle("hidden", !canBack);
+    $("mobileTabs").classList.add("hidden");
+    show("scrMsg");
+  }
+  function confirmBox(title, html, okText, danger) {
+    return new Promise((res) => {
+      const root = $("modalRoot");
+      root.innerHTML = `<div class="modal-back"><div class="modal"><h3>${U.esc(title)}</h3><div>${html}</div>
+        <div class="actions"><button class="btn" data-r="0">취소</button><button class="btn ${danger ? "danger" : "primary"}" data-r="1">${U.esc(okText || "확인")}</button></div></div></div>`;
+      root.querySelectorAll("[data-r]").forEach((b) => (b.onclick = () => { root.innerHTML = ""; res(b.dataset.r === "1"); }));
+    });
+  }
+  $("msgBack").onclick = () => { cleanup(); show("scrLogin"); };
+  function cleanup() { st.unsubs.forEach((f) => f()); st.unsubs = []; }
+
+  /* ---------------- 로그인 ---------------- */
+  $("sid").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "")));
+  $("loginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const sid = $("sid").value.trim(), name = $("sname").value.trim().replace(/\s+/g, "");
+    const p = U.parseSid(sid);
+    $("loginErr").textContent = "";
+    if (!p) { $("loginErr").textContent = `학번 5자리를 확인하세요. (${C.grade}학년, 1~${C.classCount}반)`; return; }
+    if (name.length < 2) { $("loginErr").textContent = "이름을 정확히 입력하세요."; return; }
+    const ok = await confirmBox("입장 정보 확인",
+      `<p style="font-size:17px;color:var(--ink)"><b>${C.grade}학년 ${p.cls}반 ${p.no}번 ${U.esc(name)}</b></p><p>학번과 이름이 맞나요? 잘못 입력하면 성적 처리에 문제가 생길 수 있어요.</p>`, "맞습니다");
+    if (!ok) return;
+    $("loginBtn").disabled = true;
+    try {
+      await S.signInStudent();
+      Object.assign(st, { sid, name, cls: p.cls, no: p.no, nameHash: await U.nameHash(sid, name) });
+      try { localStorage.setItem("lastStudent", JSON.stringify({ sid, name })); } catch (e) {}
+      waitForOpen();
+    } catch (err) {
+      console.error(err); $("loginErr").textContent = "접속에 실패했습니다. 인터넷 연결을 확인하고 다시 시도하세요.";
+    } finally { $("loginBtn").disabled = false; }
+  };
+  try { const last = JSON.parse(localStorage.getItem("lastStudent") || "null"); if (last) { $("sid").value = last.sid; $("sname").value = last.name; } } catch (e) {}
+
+  /* ---------------- 반 시험 공개 대기 ---------------- */
+  function waitForOpen() {
+    cleanup();
+    message("spin", `${st.cls}반 시험 준비 중`, "선생님이 시험을 시작하면 자동으로 열립니다.<br>이 화면을 그대로 두세요.", true);
+    let started = false;
+    st.unsubs.push(S.on("config/settings", (v) => { st.settings = v || {}; }));
+    st.unsubs.push(S.on(`config/classes/${st.cls}`, (c) => {
+      if (c && c.open && c.form) {
+        if (!started) { started = true; enter(c.form); }
+      } else if (started && !st.submitted) {
+        lockExam("선생님이 시험을 종료했습니다. 지금까지 자동 저장된 답안이 기록으로 남습니다.");
+      }
+    }));
+  }
+
+  /* ---------------- 입장 ---------------- */
+  async function enter(formFromClass) {
+    let rec;
+    try { rec = await S.get(`answers/${st.sid}`); }
+    catch (err) {
+      console.error(err);
+      message("🔒", "다른 기기에서 이미 시작한 학번입니다", "같은 학번으로 다른 컴퓨터나 브라우저에서 이미 시험을 시작했습니다.<br>기기를 바꿔야 한다면 선생님께 <b>기기 변경 허용</b>을 요청하세요.", true);
+      return;
+    }
+    if (rec && rec.nameHash && rec.nameHash !== st.nameHash && !rec.submitted) {
+      const ok = await confirmBox("이름이 다릅니다",
+        `<p>이 학번으로 처음 입장할 때 입력한 이름과 지금 입력한 이름이 다릅니다.</p><p><b>${C.grade}학년 ${st.cls}반 ${st.no}번 ${U.esc(st.name)}</b>이(가) 맞다면 계속하세요. 이름이 이것으로 바뀝니다.<br>학번을 잘못 입력했다면 취소하고 다시 입력하세요.</p>`, "이 이름으로 계속");
+      if (!ok) { cleanup(); show("scrLogin"); return; }
+    }
+    if (rec && rec.submitted) { st.submitted = true; doneScreen(rec); return; }
+    st.form = (rec && rec.form) || formFromClass;
+    const user = S.currentUser();
+    // 서버에는 이름 대신 이름 코드(nameHash)만 저장합니다.
+    const base = { uid: user.uid, sid: st.sid, cls: st.cls, no: st.no, nameHash: st.nameHash, form: st.form, updatedAt: S.now() };
+    if (!rec || !rec.startedAt) base.startedAt = S.now();
+    try { await S.update(`answers/${st.sid}`, base); }
+    catch (err) { console.error(err); message("⚠️", "입장할 수 없습니다", "시험이 열려 있는지 확인하고 다시 시도하세요.", true); return; }
+    st.answers = (rec && rec.answers) || {};
+    try { const bk = JSON.parse(localStorage.getItem("bk:" + st.sid) || "null"); if (bk && bk.t > ((rec && rec.updatedAt) || 0)) st.answers = Object.assign({}, st.answers, bk.a); } catch (e) {}
+    st.leave = (rec && rec.leaveCount) || 0;
+    buildExam();
+    openPdf();
+  }
+
+  /* ---------------- 시험 화면 구성 ---------------- */
+  function buildExam() {
+    const f = C.forms[st.form];
+    $("formChip").className = "chip " + st.form; $("formChip").textContent = f.label;
+    $("studentChip").className = "chip"; $("studentChip").textContent = `${st.sid} ${st.name}`;
+    $("saveChip").classList.remove("hidden");
+    $("paperCard").innerHTML = `<span class="chip ${st.form}">${f.label} · ${U.esc(f.field)}</span>
+      <div class="ptitle">${U.esc(f.paperTitle)}</div><div class="psrc">${U.esc(f.source)}</div>
+      <div class="focus-box"><b>지정 실험 (탐구 ①~⑥은 이 실험을 기준으로 답하세요)</b>${U.esc(f.focusName)}<br>
+      <span style="font-size:13px">뷰어 쪽 번호: ${U.esc(f.focusPages)}</span></div>`;
+    $("goFocus").onclick = () => gotoPage(f.jumpPage);
+
+    const list = $("qList"); list.innerHTML = "";
+    let lastArea = null;
+    const areaName = { process: "과정 (10점) · 논문 전체를 읽고 요약하기", inquiry: "탐구 (25점) · 가설·변인·실험 과정 분석하기", extra: "기타" };
+    C.questions.forEach((q) => {
+      if (q.area !== lastArea) { const h = document.createElement("div"); h.className = "sec-title"; h.textContent = areaName[q.area]; list.appendChild(h); lastArea = q.area; }
+      const card = document.createElement("div");
+      card.className = "card q-card " + q.area; card.id = "q-" + q.id;
+      card.innerHTML = `<div class="q-head"><span class="q-no">${U.esc(q.no)}</span><span class="q-title">${U.esc(q.title)}</span>
+        <span class="scope ${q.scope}">${q.scope === "focus" ? "지정 실험" : "논문 전체"}</span></div>
+        <p class="q-prompt">${U.esc(q.prompt)}</p><div class="q-body"></div>`;
+      const body = card.querySelector(".q-body");
+      if (q.type === "text") {
+        body.innerHTML = `<textarea class="input" rows="${q.rows || 4}" data-q="${q.id}"></textarea><div class="q-foot"><span class="cnt">0자</span></div>`;
+        const ta = body.querySelector("textarea"); ta.value = st.answers[q.id] || "";
+        const cnt = body.querySelector(".cnt"); const upd = () => (cnt.textContent = ta.value.trim().length + "자"); upd();
+        ta.addEventListener("input", () => { st.answers[q.id] = ta.value; upd(); changed(); });
+      } else if (q.type === "steps") {
+        let arr = Array.isArray(st.answers[q.id]) ? st.answers[q.id].slice() : [];
+        while (arr.length < 5) arr.push("");
+        const wrap = document.createElement("div"); wrap.className = "steps"; body.appendChild(wrap);
+        const ctl = document.createElement("div"); ctl.style.cssText = "display:flex;gap:6px;margin-top:8px";
+        ctl.innerHTML = '<button class="btn sm" type="button">+ 단계 추가</button><button class="btn sm" type="button">− 마지막 단계 삭제</button>';
+        body.appendChild(ctl);
+        const render = () => {
+          wrap.innerHTML = "";
+          arr.forEach((v, i) => {
+            const row = document.createElement("div"); row.className = "step-row";
+            row.innerHTML = `<span class="n">${i + 1}</span><textarea class="input" rows="1"></textarea>`;
+            const ta = row.querySelector("textarea"); ta.value = v;
+            ta.addEventListener("input", () => { arr[i] = ta.value; st.answers[q.id] = arr.slice(); changed(); });
+            wrap.appendChild(row);
+          });
+          applyLock();
+        };
+        ctl.children[0].onclick = () => { if (st.locked) return; if (arr.length < 15) { arr.push(""); render(); } };
+        ctl.children[1].onclick = () => { if (st.locked) return; if (arr.length > 3) { arr.pop(); st.answers[q.id] = arr.slice(); render(); changed(); } };
+        render();
+      } else if (q.type === "keywords") {
+        const arr = Array.isArray(st.answers[q.id]) ? st.answers[q.id].slice() : ["", "", ""];
+        while (arr.length < 3) arr.push("");
+        body.innerHTML = '<div class="kw"></div>';
+        arr.slice(0, 3).forEach((v, i) => {
+          const inp = document.createElement("input"); inp.className = "input"; inp.placeholder = "개념 " + (i + 1); inp.value = v;
+          inp.addEventListener("input", () => { arr[i] = inp.value; st.answers[q.id] = arr.slice(0, 3); changed(); });
+          body.firstChild.appendChild(inp);
+        });
+      }
+      list.appendChild(card);
+    });
+
+    const nav = $("progressNav"); nav.innerHTML = "";
+    C.questions.filter((q) => q.area !== "extra").forEach((q) => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.q = q.id; b.textContent = q.no;
+      b.onclick = () => { setTab("answer"); $("q-" + q.id).scrollIntoView({ behavior: "smooth", block: "start" }); };
+      nav.appendChild(b);
+    });
+    refreshProgress();
+
+    $("submitTop").onclick = $("submitBottom").onclick = submit;
+    setupPasteGuard();
+    setupLeaveWatch();
+    setupDivider();
+    $("mobileTabs").classList.remove("hidden");
+    show("scrExam");
+    updateLeaveBanner();
+  }
+
+  function refreshProgress() {
+    let n = 0, total = 0;
+    C.questions.forEach((q) => {
+      if (q.area === "extra") return; total++;
+      const d = U.answered(q, st.answers[q.id]); if (d) n++;
+      const b = document.querySelector(`#progressNav [data-q="${q.id}"]`); if (b) b.classList.toggle("done", d);
+    });
+    $("doneCount").textContent = `${n} / ${total}`;
+  }
+
+  /* ---------------- 자동 저장 ---------------- */
+  let saveTimer = null, saving = false, pending = false;
+  function setSave(state, text) { const c = $("saveChip"); c.className = "chip " + state; c.textContent = text; }
+  function changed() {
+    refreshProgress();
+    try { localStorage.setItem("bk:" + st.sid, JSON.stringify({ t: Date.now(), a: st.answers })); } catch (e) {}
+    setSave("warn", "저장 대기");
+    clearTimeout(saveTimer); saveTimer = setTimeout(save, 1200);
+  }
+  async function save() {
+    if (st.locked) return;
+    if (saving) { pending = true; return; }
+    saving = true; setSave("warn", "저장 중...");
+    try {
+      await S.update(`answers/${st.sid}`, { answers: st.answers, updatedAt: S.now() });
+      const d = new Date(); setSave("ok", `저장됨 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`);
+    } catch (err) { console.error(err); setSave("bad", "저장 실패 · 다시 시도 중"); setTimeout(save, 4000); }
+    saving = false;
+    if (pending) { pending = false; save(); }
+  }
+  window.addEventListener("beforeunload", (e) => { if (!st.locked && st.form && $("saveChip").textContent !== "" && /대기|중/.test($("saveChip").textContent)) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* ---------------- 제출 ---------------- */
+  async function submit() {
+    if (st.locked) return;
+    const empty = C.questions.filter((q) => q.area !== "extra" && !U.answered(q, st.answers[q.id])).map((q) => q.no);
+    const html = (empty.length ? `<p style="color:var(--bad)">아직 작성하지 않은 문항: <b>${empty.join(", ")}</b></p>` : "<p>모든 문항을 작성했습니다.</p>") +
+      "<p>제출하면 더 이상 수정할 수 없습니다. 제출할까요?</p>";
+    if (!(await confirmBox("답안 제출", html, "제출하기"))) return;
+    clearTimeout(saveTimer);
+    try {
+      await S.update(`answers/${st.sid}`, { answers: st.answers, updatedAt: S.now(), submitted: true, submittedAt: S.now() });
+      st.submitted = true;
+      try { localStorage.removeItem("bk:" + st.sid); } catch (e) {}
+      doneScreen({ form: st.form });
+    } catch (err) { console.error(err); toast("제출하지 못했습니다. 시험이 열려 있는지 확인하고 다시 눌러 주세요.", 4000); }
+  }
+  function doneScreen(rec) {
+    st.locked = true;
+    $("saveChip").classList.add("hidden");
+    message("✅", "제출이 완료되었습니다", `${U.esc(st.sid)} ${U.esc(st.name)} 학생의 답안이 제출되었습니다.<br>수고했습니다!`, true);
+  }
+  function lockExam(text) {
+    st.locked = true; applyLock();
+    setSave("bad", "시험 종료");
+    $("submitTop").disabled = $("submitBottom").disabled = true;
+    const root = $("modalRoot");
+    root.innerHTML = `<div class="modal-back"><div class="modal"><h3>시험 종료</h3><p>${U.esc(text)}</p><div class="actions"><button class="btn primary" onclick="this.closest('.modal-back').remove()">확인</button></div></div></div>`;
+  }
+  function applyLock() {
+    document.querySelectorAll("#qList textarea, #qList input").forEach((el) => (el.readOnly = st.locked));
+    $("qList").classList.toggle("locked", st.locked);
+  }
+
+  /* ---------------- 붙여넣기 차단 (교사 설정) ---------------- */
+  function setupPasteGuard() {
+    const block = (e) => { if (st.settings && st.settings.blockPaste) { e.preventDefault(); toast("시험 중에는 붙여넣기를 할 수 없습니다."); } };
+    $("qList").addEventListener("paste", block); $("qList").addEventListener("drop", block);
+  }
+
+  /* ---------------- 다른 창 이동 기록 ---------------- */
+  function setupLeaveWatch() {
+    let away = false;
+    const leave = () => {
+      if (away || st.locked) return; away = true; st.leave++;
+      S.update(`answers/${st.sid}`, { leaveCount: st.leave, lastLeaveAt: S.now() }).catch(() => {});
+      updateLeaveBanner();
+    };
+    document.addEventListener("visibilitychange", () => { if (document.hidden) leave(); else away = false; });
+    window.addEventListener("blur", () => setTimeout(() => { if (!document.hasFocus()) leave(); }, 300));
+    window.addEventListener("focus", () => (away = false));
+  }
+  function updateLeaveBanner() {
+    const b = $("leaveBanner");
+    if (st.leave > 0 && !st.locked) { b.textContent = `시험 화면을 벗어난 기록이 ${st.leave}회 있습니다. 시험 중에는 이 화면만 사용하세요.`; b.classList.remove("hidden"); }
+    else b.classList.add("hidden");
+  }
+
+  /* ---------------- 좌우 크기 조절 · 모바일 탭 ---------------- */
+  function setupDivider() {
+    const d = $("divider"), ex = $("scrExam"); let drag = false;
+    d.onmousedown = (e) => { drag = true; d.classList.add("drag"); e.preventDefault(); };
+    window.addEventListener("mousemove", (e) => { if (!drag) return; const pct = Math.min(75, Math.max(30, (e.clientX / window.innerWidth) * 100)); ex.style.setProperty("--left", pct + "%"); });
+    window.addEventListener("mouseup", () => { if (drag) { drag = false; d.classList.remove("drag"); if (fitMode) fitWidth(); } });
+  }
+  function setTab(t) {
+    $("scrExam").dataset.tab = t;
+    document.querySelectorAll("#mobileTabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+    if (t === "paper" && fitMode) setTimeout(fitWidth, 30);
+  }
+  document.querySelectorAll("#mobileTabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+
+  /* ---------------- PDF 뷰어 ---------------- */
+  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  let pdf = null, page = 1, scale = 1, fitMode = true, rendering = false, queued = null;
+  async function openPdf() {
+    const f = C.forms[st.form];
+    $("pdfState").textContent = "논문을 여는 중...";
+    try {
+      if (!window.pdfjsLib) throw new Error("PDF 뷰어를 불러오지 못했습니다.");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js";
+      const key = await S.get(`keys/${st.form}`);
+      if (!key) throw new Error("논문 열람 암호가 아직 등록되지 않았습니다. 선생님께 알려 주세요.");
+      pdf = await pdfjsLib.getDocument({ url: f.file, password: key, cMapUrl: PDFJS + "cmaps/", cMapPacked: true, standardFontDataUrl: PDFJS + "standard_fonts/" }).promise;
+      $("pgTotal").textContent = pdf.numPages;
+      $("pdfState").classList.add("hidden"); $("pdfCanvas").classList.remove("hidden");
+      await fitWidth();
+    } catch (err) {
+      console.error(err);
+      $("pdfState").textContent = (err && err.name === "PasswordException") ? "논문 열람 암호가 맞지 않습니다. 선생님께 알려 주세요." : (err.message || "논문을 열지 못했습니다.");
+    }
+  }
+  async function render() {
+    if (!pdf) return;
+    if (rendering) { queued = true; return; }
+    rendering = true;
+    try {
+      const pg = await pdf.getPage(page);
+      const vp = pg.getViewport({ scale });
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      const cv = $("pdfCanvas"), ctx = cv.getContext("2d");
+      cv.width = Math.floor(vp.width * dpr); cv.height = Math.floor(vp.height * dpr);
+      cv.style.width = Math.floor(vp.width) + "px"; cv.style.height = Math.floor(vp.height) + "px";
+      await pg.render({ canvasContext: ctx, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null }).promise;
+      $("pgNum").value = page; $("zVal").textContent = Math.round(scale * 100) + "%";
+      $("pgPrev").disabled = page <= 1; $("pgNext").disabled = page >= pdf.numPages;
+    } catch (e) { console.error(e); }
+    rendering = false;
+    if (queued) { queued = null; render(); }
+  }
+  async function fitWidth() {
+    if (!pdf) return; fitMode = true;
+    const pg = await pdf.getPage(page); const w = pg.getViewport({ scale: 1 }).width;
+    const avail = $("pdfScroll").clientWidth - 40;
+    scale = Math.max(0.4, Math.min(3, avail / w)); render();
+  }
+  function gotoPage(n) { if (!pdf) return; page = Math.min(pdf.numPages, Math.max(1, n | 0)); $("pdfScroll").scrollTop = 0; render(); setTab("paper"); }
+  function zoom(f) { fitMode = false; scale = Math.max(0.4, Math.min(4, scale * f)); render(); }
+  $("pgPrev").onclick = () => gotoPage(page - 1);
+  $("pgNext").onclick = () => gotoPage(page + 1);
+  $("pgNum").onchange = (e) => gotoPage(parseInt(e.target.value, 10) || 1);
+  $("zIn").onclick = () => zoom(1.2); $("zOut").onclick = () => zoom(1 / 1.2); $("zFit").onclick = fitWidth;
+  $("pdfScroll").addEventListener("wheel", (e) => { if (e.ctrlKey) { e.preventDefault(); zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); } }, { passive: false });
+  document.addEventListener("keydown", (e) => {
+    if (!pdf || /TEXTAREA|INPUT/.test(document.activeElement.tagName)) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown") gotoPage(page + 1);
+    if (e.key === "ArrowLeft" || e.key === "PageUp") gotoPage(page - 1);
+  });
+  window.addEventListener("resize", () => { if (fitMode) fitWidth(); });
+  $("pdfCanvas").addEventListener("contextmenu", (e) => e.preventDefault());
+})();
+</script>
+</body>
+</html>

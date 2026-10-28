@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>교사 화면 · 선행연구 분석 수행평가</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<style>
+  .tabs { display: flex; gap: 4px; padding: 0 18px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 56px; z-index: 15; }
+  .tabs button { border: 0; background: none; padding: 12px 14px 10px; font-weight: 600; color: var(--ink-3); border-bottom: 2.5px solid transparent; }
+  .tabs button.on { color: var(--brand-ink); border-bottom-color: var(--brand); }
+  .wrap { padding: 18px; max-width: 1500px; margin: 0 auto; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .bar h2 { font-size: 17px; margin: 0 8px 0 0; }
+  .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .cls { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .cls.open { border-color: #9fd0bf; box-shadow: 0 0 0 3px rgba(31, 111, 92, .12); }
+  .cls .row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .cls .name { font-weight: 700; font-size: 16px; }
+  .cls select { width: 92px; padding: 5px 8px; }
+  .cls .stat { font-size: 12.5px; color: var(--ink-3); }
+  .keys-state { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--ink-2); }
+  .table-wrap { overflow: auto; max-height: calc(100vh - 200px); border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  table.sheet { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 100%; }
+  .sheet th, .sheet td { border-right: 1px solid var(--line-2); border-bottom: 1px solid var(--line-2); padding: 6px 8px; vertical-align: top; text-align: left; }
+  .sheet th { position: sticky; top: 0; background: #f7f8f6; z-index: 3; font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+  .sheet th small { display: block; font-weight: 500; color: var(--ink-3); }
+  .sheet .stick { position: sticky; left: 0; background: #fff; z-index: 2; width: 64px; min-width: 64px; max-width: 64px; }
+  .sheet .stick2 { white-space: nowrap; min-width: 76px; }
+  .sheet td:nth-child(3), .sheet td:nth-child(4) { white-space: nowrap; }
+  .sheet th.stick { z-index: 4; background: #f7f8f6; }
+  .sheet .stick2 { position: sticky; left: 64px; background: #fff; z-index: 2; box-shadow: 1px 0 0 var(--line); }
+  .sheet th.stick2 { z-index: 4; background: #f7f8f6; }
+  .sheet tbody tr { cursor: pointer; }
+  .sheet tbody tr:hover td { background: #f6faf8; }
+  .sheet td.ans { min-width: 170px; max-width: 220px; }
+  .sheet td.ans div { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; color: var(--ink-2); }
+  .sheet td.ans.chk { background: #eef8f2; }
+  .sheet td.ans.empty div { color: #c4c9c5; }
+  .sheet td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  .drawer-back { position: fixed; inset: 0; background: rgba(15, 20, 18, .35); z-index: 50; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100vw); background: var(--bg); z-index: 51; display: flex; flex-direction: column; box-shadow: -10px 0 40px rgba(0, 0, 0, .15); }
+  .drawer-head { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .drawer-body { flex: 1; overflow: auto; padding: 14px 16px 30px; }
+  .ga { padding: 12px 14px; margin-bottom: 10px; }
+  .ga.on { border-color: #9fd0bf; background: #f7fcf9; }
+  .ga .crit { font-size: 12.5px; color: var(--ink-3); margin: 2px 0 8px; }
+  .ga .txt { white-space: pre-wrap; font-size: 14.5px; background: #fff; border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 11px; min-height: 38px; }
+  .ga .txt.empty { color: #b8beba; }
+  .check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; cursor: pointer; user-select: none; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+  .check input { width: 17px; height: 17px; accent-color: var(--brand); }
+  .ga.on .check { border-color: #9fd0bf; color: var(--brand-ink); }
+  .score-box { display: flex; gap: 10px; flex-wrap: wrap; }
+  .score-box div { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; text-align: center; min-width: 96px; }
+  .score-box b { display: block; font-size: 20px; }
+  .score-box span { font-size: 12px; color: var(--ink-3); }
+  .settings { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 900px; }
+  .settings .card { min-width: 0; }
+  .settings .card { padding: 18px 20px; }
+  .settings h3 { margin: 0 0 6px; font-size: 16px; }
+  .settings p { margin: 0 0 12px; color: var(--ink-2); font-size: 14px; }
+  .key-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+  pre.rules { background: #1d2320; color: #d6f0e6; padding: 14px; border-radius: 10px; font-size: 12px; overflow: auto; max-height: 360px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--brand); }
+  .nm-bad { color: var(--bad); }
+  .roster-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+  .t-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .t-item { display: flex; align-items: center; gap: 8px; justify-content: space-between; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 14px; }
+  textarea.paste { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="demoBanner" class="demo-banner hidden">데모 모드입니다. 같은 브라우저의 다른 탭에서 학생 화면(index.html)을 열어 체험해 보세요.</div>
+<header class="topbar">
+  <div class="logo">탐</div>
+  <div class="title"><span id="tTitle"></span><small>교사 화면</small></div>
+  <div class="spacer"></div>
+  <span id="whoChip" class="chip hidden"></span>
+  <button class="btn sm hidden" id="logoutBtn">로그아웃</button>
+</header>
+
+<section id="scrLogin" class="center-wrap">
+  <div class="card login-card">
+    <h1>교사 로그인</h1>
+    <p class="sub">학교에서 사용하는 Google 계정으로 로그인하세요. 처음 로그인하는 선생님은 등록 요청 후 관리 교사의 승인을 받으면 사용할 수 있습니다.</p>
+    <button class="btn primary" style="width:100%;padding:10px" id="loginBtn">Google 계정으로 로그인</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</section>
+
+<section id="scrPending" class="center-wrap hidden">
+  <div class="card login-card">
+    <h1>교사 등록이 필요합니다</h1>
+    <p class="sub"><b id="pendEmail"></b> 계정은 아직 이 평가의 교사로 등록되지 않았습니다.</p>
+    <div id="pendBox"></div>
+    <div class="bar" style="margin-top:14px"><button class="btn" id="pendLogout">다른 계정으로 로그인</button></div>
+  </div>
+</section>
+
+<div id="main" class="hidden">
+  <nav class="tabs">
+    <button data-tab="run" class="on">시험 운영</button>
+    <button data-tab="grade">답안 · 채점</button>
+    <button data-tab="set">설정</button>
+  </nav>
+
+  <!-- 시험 운영 -->
+  <section class="wrap" id="tab-run">
+    <div class="bar">
+      <h2>반별 형 배정과 시험 공개</h2>
+      <button class="btn" id="randBtn">형 랜덤 배정</button>
+      <span style="flex:1"></span>
+      <div class="keys-state" id="keysState"></div>
+    </div>
+    <p class="hint" style="margin:-6px 0 14px">‘시험 시작’을 누른 반의 학생에게만 배정된 논문이 열립니다. 담당하는 반만 시작·종료하고, 수업이 끝나면 반드시 ‘시험 종료’를 눌러 주세요.</p>
+    <div class="class-grid" id="classGrid"></div>
+  </section>
+
+  <!-- 답안·채점 -->
+  <section class="wrap hidden" id="tab-grade">
+    <div class="bar">
+      <h2>답안 스프레드시트</h2>
+      <select class="input" id="fCls" style="width:110px"></select>
+      <select class="input" id="fForm" style="width:100px"><option value="">전체 형</option><option>A</option><option>B</option><option>C</option></select>
+      <select class="input" id="fState" style="width:150px">
+        <option value="">전체 상태</option><option value="sub">제출 완료</option><option value="ing">작성 중</option>
+        <option value="miss">미입장 (명렬표 기준)</option><option value="bad">이름 확인 필요</option></select>
+      <input class="input" id="fName" placeholder="이름·학번 검색" style="width:150px">
+      <span style="flex:1"></span>
+      <span class="chip" id="countChip"></span>
+      <button class="btn primary" id="xlsxBtn">엑셀로 내려받기</button>
+    </div>
+    <div class="notice hidden" id="rosterWarn" style="margin:-4px 0 12px"></div>
+    <div class="table-wrap"><table class="sheet" id="sheet"></table></div>
+    <p class="hint">행을 누르면 학생 답안 전체를 보고 채점 기준별로 체크할 수 있습니다. 초록색 칸은 기준 충족으로 체크한 문항입니다.</p>
+  </section>
+
+  <!-- 설정 -->
+  <section class="wrap hidden" id="tab-set">
+    <div class="settings">
+      <div class="card">
+        <h3>명렬표 불러오기 (이 컴퓨터에만 저장)</h3>
+        <p>학생 이름은 서버에 저장되지 않고 알아볼 수 없는 코드로만 저장됩니다. 명렬표를 불러오면 이 코드와 대조해 이름을 보여 주고, 이름을 잘못 입력한 학생을 찾아 줍니다. 명렬표는 <b>이 컴퓨터의 이 브라우저에만</b> 저장되므로, 다른 컴퓨터에서는 다시 불러와야 합니다.</p>
+        <div class="field"><label>방법 1. 엑셀·CSV 파일 (학번·이름 열, 또는 반·번호·성명 열)</label><input type="file" id="rosterFile" accept=".xlsx,.xls,.csv" multiple></div>
+        <div class="field"><label>방법 2. 붙여넣기 (한 줄에 “학번 이름”, 엑셀에서 두 열을 복사해 붙여넣어도 됩니다)</label>
+          <textarea class="input paste" id="rosterPaste" rows="4" placeholder="10301 김민준&#10;10302 이서연"></textarea>
+          <div class="bar" style="margin:8px 0 0"><button class="btn sm" id="rosterPasteBtn">붙여넣은 명렬표 추가</button></div></div>
+        <div class="roster-sum" id="rosterSum"></div>
+        <button class="btn sm danger" id="rosterClear">이 컴퓨터의 명렬표 지우기</button>
+      </div>
+      <div class="card">
+        <h3>논문 열람 암호 등록</h3>
+        <p><b>keys.txt</b>의 암호를 형별로 붙여넣고 저장하세요. 암호는 데이터베이스에만 저장되고, 시험이 시작된 반의 학생 화면에서만 자동으로 사용됩니다. 학생에게는 보이지 않습니다. (한 번만 등록하면 모든 선생님이 함께 사용합니다)</p>
+        <div id="keyRows"></div>
+      </div>
+      <div class="card">
+        <h3>시험 중 제한</h3>
+        <p>답안 칸에 붙여넣기(Ctrl+V)와 끌어 놓기를 막습니다. 다른 창·탭으로 이동한 횟수는 항상 기록됩니다.</p>
+        <label class="switch"><input type="checkbox" id="blockPaste"> 붙여넣기 차단</label>
+      </div>
+      <div class="card">
+        <h3>교사 관리</h3>
+        <p id="teacherDesc">다른 선생님이 교사 화면에 로그인해 등록 요청을 보내면 여기에 표시됩니다. 승인과 삭제는 관리 교사만 할 수 있습니다.</p>
+        <b style="font-size:13.5px">등록 요청</b><div class="t-list" id="reqList"></div>
+        <b style="font-size:13.5px">등록된 교사</b><div class="t-list" id="tList"></div>
+      </div>
+      <div class="card hidden" id="ownerCard">
+        <h3>성적 처리 후 데이터 삭제 (관리 교사)</h3>
+        <p>엑셀로 내려받아 보관한 뒤, 서버에 남은 학생 답안과 채점 기록을 모두 지웁니다. 되돌릴 수 없습니다.</p>
+        <button class="btn danger" id="wipeBtn">전체 답안·채점 기록 삭제</button>
+      </div>
+      <div class="card hidden" id="rulesCard">
+        <h3>Firebase 보안 규칙 (관리 교사)</h3>
+        <p>Firebase 콘솔 › Realtime Database › 규칙 탭에 붙여넣고 ‘게시’합니다. 지금 로그인한 관리 교사 이메일이 반영되어 있습니다.</p>
+        <div class="bar"><button class="btn sm" id="copyRules">규칙 복사</button></div>
+        <pre class="rules" id="rulesPre"></pre>
+      </div>
+      <div class="card hidden" id="demoCard">
+        <h3>데모 도구</h3>
+        <p>체험용 가상 학생 답안과 명렬표를 만들거나 데모 데이터를 모두 지웁니다.</p>
+        <div class="bar"><button class="btn" id="demoSeed">가상 학생 답안 만들기</button><button class="btn danger" id="demoReset">데모 데이터 모두 지우기</button></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="drawerRoot"></div>
+<div id="modalRoot"></div>
+
+<script>
+(function () {
+  const C = window.EXAM_CONFIG, S = window.Store, U = window.ExamUtil;
+  const $ = (id) => document.getElementById(id);
+  const FORMS = Object.keys(C.forms);
+  const QS = C.questions;
+  const data = { classes: {}, settings: {}, answers: {}, grades: {}, keys: {}, teachers: {}, requests: {} };
+  const RKEY = "roster:" + C.rootPath;
+  let roster = {}, rosterHash = {};
+  let drawerSid = null, isOwner = false, me = null;
+
+  $("tTitle").textContent = C.examTitle;
+  if (S.isDemo) { $("demoBanner").classList.remove("hidden"); $("demoCard").classList.remove("hidden"); $("loginBtn").textContent = "데모 교사로 입장"; }
+
+  function toast(msg, ms) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2400); }
+  function confirmBox(title, html, okText, danger) {
+    return new Promise((res) => {
+      const root = $("modalRoot");
+      root.innerHTML = `<div class="modal-back"><div class="modal"><h3>${U.esc(title)}</h3><div>${html}</div>
+        <div class="actions"><button class="btn" data-r="0">취소</button><button class="btn ${danger ? "danger" : "primary"}" data-r="1">${U.esc(okText || "확인")}</button></div></div></div>`;
+      root.querySelectorAll("[data-r]").forEach((b) => (b.onclick = () => { root.innerHTML = ""; res(b.dataset.r === "1"); }));
+    });
+  }
+  const showScr = (id) => ["scrLogin", "scrPending", "main"].forEach((s) => $(s).classList.toggle("hidden", s !== id));
+
+  /* ---------------- 로그인 · 교사 확인 ---------------- */
+  $("loginBtn").onclick = async () => {
+    $("loginErr").textContent = "";
+    try { await S.signInTeacher(); } catch (e) { console.error(e); $("loginErr").textContent = "로그인하지 못했습니다. 팝업 차단을 해제하고 다시 시도하세요."; }
+  };
+  $("logoutBtn").onclick = $("pendLogout").onclick = () => S.signOut();
+  let started = false;
+  S.onAuth(async (u) => {
+    me = u;
+    if (!u || u.isAnonymous) { if (u && u.isAnonymous) await S.signOut(); showScr("scrLogin"); $("whoChip").classList.add("hidden"); $("logoutBtn").classList.add("hidden"); return; }
+    if (S.isTeacher(u) && (await S.checkTeacher())) {
+      $("whoChip").textContent = u.email; $("whoChip").classList.remove("hidden"); $("logoutBtn").classList.remove("hidden");
+      showScr("main");
+      isOwner = S.isDemo ? true : await S.remove("teachers/_ownerProbe").then(() => true, () => false);
+      ["ownerCard", "rulesCard"].forEach((id) => $(id).classList.toggle("hidden", !isOwner));
+      if (!started) { started = true; startListening(); }
+    } else {
+      showScr("scrPending"); $("pendEmail").textContent = u.email;
+      renderPending(u);
+    }
+  });
+  function renderPending(u) {
+    const box = $("pendBox");
+    S.on(`teacherRequests/${u.uid}`, (r) => {
+      box.innerHTML = r
+        ? `<div class="notice">등록 요청을 보냈습니다 (${U.fmtTime(r.at)}).<br>관리 교사가 승인하면 이 화면이 자동으로 교사 화면으로 바뀝니다.</div>`
+        : `<button class="btn primary" style="width:100%;padding:10px" id="reqBtn">관리 교사에게 등록 요청 보내기</button>`;
+      const b = $("reqBtn");
+      if (b) b.onclick = async () => {
+        try { await S.set(`teacherRequests/${u.uid}`, { email: u.email, name: u.displayName || "", at: S.now() }); }
+        catch (e) { console.error(e); toast("요청을 보내지 못했습니다. 잠시 후 다시 시도하세요."); }
+      };
+    });
+    S.on(`teachers/${u.uid}`, (t) => { if (t) location.reload(); });
+  }
+
+  /* ---------------- 탭 ---------------- */
+  document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    ["run", "grade", "set"].forEach((t) => $("tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+  }));
+
+  /* ---------------- 실시간 수신 ---------------- */
+  function startListening() {
+    S.on("config/classes", (v) => { data.classes = v || {}; renderClasses(); renderSheet(); });
+    S.on("config/settings", (v) => { data.settings = v || {}; $("blockPaste").checked = !!data.settings.blockPaste; });
+    S.on("keys", (v) => { data.keys = v || {}; renderKeys(); renderClasses(); });
+    S.on("answers", (v) => { data.answers = v || {}; renderClasses(); renderSheet(); if (drawerSid) renderDrawer(); });
+    S.on("grades", (v) => { data.grades = v || {}; renderSheet(); if (drawerSid) renderDrawer(); });
+    S.on("teachers", (v) => { data.teachers = v || {}; renderTeachers(); });
+    S.on("teacherRequests", (v) => { data.requests = v || {}; renderTeachers(); });
+    loadRoster();
+    renderRules();
+  }
+
+  /* ---------------- 명렬표 (이 브라우저에만 저장) ---------------- */
+  async function loadRoster() {
+    try { roster = JSON.parse(localStorage.getItem(RKEY) || "{}"); } catch (e) { roster = {}; }
+    rosterHash = {};
+    await Promise.all(Object.entries(roster).map(async ([sid, n]) => (rosterHash[sid] = await U.nameHash(sid, n))));
+    renderRosterSum(); renderSheet(); if (drawerSid) renderDrawer();
+  }
+  function saveRoster(add) {
+    let cur = {}; try { cur = JSON.parse(localStorage.getItem(RKEY) || "{}"); } catch (e) {}
+    Object.assign(cur, add);
+    try { localStorage.setItem(RKEY, JSON.stringify(cur)); } catch (e) { toast("이 브라우저에 저장하지 못했습니다."); }
+    loadRoster();
+  }
+  function renderRosterSum() {
+    const by = {}; Object.keys(roster).forEach((sid) => { const p = U.parseSid(sid); if (p) by[p.cls] = (by[p.cls] || 0) + 1; });
+    const keys = Object.keys(by).sort((a, b) => a - b);
+    $("rosterSum").innerHTML = keys.length ? keys.map((c) => `<span class="chip brand">${c}반 ${by[c]}명</span>`).join("") : '<span class="chip">불러온 명렬표 없음</span>';
+  }
+  function parseRows(rows) {
+    const out = {}; let hi = -1, col = {};
+    const norm = (v) => String(v == null ? "" : v).replace(/\s+/g, "");
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const r = rows[i].map(norm);
+      const f = (ks) => r.findIndex((x) => ks.includes(x));
+      const c = { sid: f(["학번"]), name: f(["이름", "성명", "학생명", "학생이름"]), cls: f(["반"]), no: f(["번호", "번"]), grade: f(["학년"]) };
+      if (c.name >= 0 && (c.sid >= 0 || (c.cls >= 0 && c.no >= 0))) { hi = i; col = c; break; }
+    }
+    if (hi >= 0) {
+      rows.slice(hi + 1).forEach((r) => {
+        const name = norm(r[col.name]); if (!name) return;
+        let sid = col.sid >= 0 ? norm(r[col.sid]).replace(/\D/g, "") : "";
+        if (!sid && col.cls >= 0 && col.no >= 0) {
+          const g = col.grade >= 0 ? (parseInt(norm(r[col.grade]), 10) || C.grade) : C.grade;
+          const cl = parseInt(norm(r[col.cls]), 10), no = parseInt(norm(r[col.no]), 10);
+          if (cl && no) sid = `${g}${String(cl).padStart(2, "0")}${String(no).padStart(2, "0")}`;
+        }
+        if (U.parseSid(sid)) out[sid] = name;
+      });
+    } else {
+      rows.forEach((r) => {
+        const cells = r.map(norm).filter(Boolean); if (cells.length < 2) return;
+        const sid = cells.find((x) => /^\d{5}$/.test(x)); const name = cells.find((x) => !/\d/.test(x));
+        if (sid && name && U.parseSid(sid)) out[sid] = name;
+      });
+    }
+    return out;
+  }
+  $("rosterFile").onchange = async (e) => {
+    if (!window.XLSX) return toast("엑셀 읽기 도구를 불러오지 못했습니다. 붙여넣기 방법을 사용해 주세요.", 3500);
+    let all = {};
+    for (const f of e.target.files) {
+      const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+      wb.SheetNames.forEach((n) => Object.assign(all, parseRows(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: "" }))));
+    }
+    e.target.value = "";
+    const n = Object.keys(all).length;
+    if (!n) return toast("학번·이름을 찾지 못했습니다. 첫 줄에 ‘학번, 이름’ 또는 ‘반, 번호, 성명’ 제목이 있는지 확인하세요.", 4500);
+    saveRoster(all); toast(`명렬표 ${n}명을 불러왔습니다.`);
+  };
+  $("rosterPasteBtn").onclick = () => {
+    const rows = $("rosterPaste").value.split(/\r?\n/).map((l) => l.split(/[\t,]+|\s+/));
+    const got = parseRows(rows); const n = Object.keys(got).length;
+    if (!n) return toast("“10301 김민준”처럼 학번과 이름을 한 줄에 하나씩 입력하세요.", 3500);
+    saveRoster(got); $("rosterPaste").value = ""; toast(`명렬표 ${n}명을 추가했습니다.`);
+  };
+  $("rosterClear").onclick = async () => {
+    if (!(await confirmBox("명렬표 지우기", "<p>이 컴퓨터에 저장된 명렬표를 지웁니다. 서버의 답안에는 영향이 없습니다.</p>", "지우기", true))) return;
+    try { localStorage.removeItem(RKEY); } catch (e) {} loadRoster();
+  };
+  /* 이름 대조: ok(일치) / bad(불일치) / none(명렬표에 없음) */
+  function nameInfo(a) {
+    const n = roster[a.sid];
+    if (!n) return { name: "", state: "none" };
+    if (!a.nameHash) return { name: n, state: "none" };
+    return { name: n, state: rosterHash[a.sid] === a.nameHash ? "ok" : "bad" };
+  }
+  function nameCell(a) {
+    if (a.missing) return `<b>${U.esc(roster[a.sid] || "")}</b>`;
+    const i = nameInfo(a);
+    if (i.state === "ok") return `<b>${U.esc(i.name)}</b>`;
+    if (i.state === "bad") return `<b class="nm-bad">${U.esc(i.name)}</b><br><span class="chip bad" style="margin-top:3px">이름 불일치</span>`;
+    return `<span style="color:var(--ink-3)">명렬표 없음</span>`;
+  }
+
+  /* ---------------- 시험 운영 ---------------- */
+  function classStats(cls) {
+    const list = Object.values(data.answers).filter((a) => a && +a.cls === +cls);
+    const total = Object.keys(roster).filter((s) => U.parseSid(s) && U.parseSid(s).cls === +cls).length;
+    return { joined: list.length, sub: list.filter((a) => a.submitted).length, total };
+  }
+  function renderKeys() {
+    $("keysState").innerHTML = "열람 암호 " + FORMS.map((f) => `<span class="chip ${data.keys[f] ? "ok" : "bad"}">${f} ${data.keys[f] ? "등록" : "미등록"}</span>`).join(" ");
+    $("keyRows").innerHTML = FORMS.map((f) => `<div class="key-row"><span class="chip ${f}">${C.forms[f].label}</span>
+      <input class="input" type="password" id="key-${f}" placeholder="${data.keys[f] ? "등록됨 (바꾸려면 새로 입력)" : "keys.txt의 " + f + "= 뒤 문자열"}" autocomplete="off">
+      <button class="btn sm" data-key="${f}">저장</button></div>`).join("");
+    document.querySelectorAll("[data-key]").forEach((b) => (b.onclick = async () => {
+      const f = b.dataset.key, v = $("key-" + f).value.trim();
+      if (!v) return toast("암호를 입력하세요.");
+      await S.set(`keys/${f}`, v); $("key-" + f).value = ""; toast(`${f}형 암호를 저장했습니다.`);
+    }));
+  }
+  function renderClasses() {
+    const g = $("classGrid"); g.innerHTML = "";
+    for (let c = 1; c <= C.classCount; c++) {
+      const info = data.classes[c] || {}; const s = classStats(c);
+      const el = document.createElement("div");
+      el.className = "card cls" + (info.open ? " open" : "");
+      const state = info.open ? '<span class="chip ok">● 시험 진행 중</span>' : (info.closedAt ? '<span class="chip">종료</span>' : '<span class="chip">대기</span>');
+      el.innerHTML = `<div class="row"><span class="name">${C.grade}학년 ${c}반</span>${state}</div>
+        <div class="row"><select class="input" ${info.open ? "disabled" : ""}><option value="">형 선택</option>${FORMS.map((f) => `<option value="${f}" ${info.form === f ? "selected" : ""}>${C.forms[f].label}</option>`).join("")}</select>
+        ${info.form ? `<span class="chip ${info.form}">${U.esc(C.forms[info.form].field)}</span>` : ""}</div>
+        <div class="stat">입장 ${s.joined}명${s.total ? ` / 명렬표 ${s.total}명` : ""} · 제출 ${s.sub}명</div>
+        <button class="btn ${info.open ? "danger" : "primary"}">${info.open ? "시험 종료" : "시험 시작"}</button>`;
+      el.querySelector("select").onchange = async (e) => {
+        if (s.joined > 0 && !(await confirmBox("형 변경", `<p>${c}반에는 이미 입장한 학생이 ${s.joined}명 있습니다. 이미 시작한 학생은 처음 배정된 형을 그대로 유지합니다. 바꿀까요?</p>`, "변경"))) { renderClasses(); return; }
+        await S.update(`config/classes/${c}`, { form: e.target.value || null });
+      };
+      el.querySelector("button").onclick = () => toggleClass(c);
+      g.appendChild(el);
+    }
+  }
+  async function toggleClass(c) {
+    const info = data.classes[c] || {};
+    if (!info.open) {
+      if (!info.form) return toast("먼저 형을 선택하세요.");
+      if (!data.keys[info.form]) return toast(`${info.form}형 열람 암호가 등록되지 않았습니다. 설정 탭에서 등록하세요.`, 3500);
+      if (!(await confirmBox(`${c}반 시험 시작`, `<p>${c}반 학생에게 <b>${C.forms[info.form].label}</b> 논문과 문항을 공개합니다.</p>`, "시작"))) return;
+    } else {
+      const s = classStats(c);
+      if (!(await confirmBox(`${c}반 시험 종료`, `<p>입장 ${s.joined}명 중 ${s.sub}명이 제출했습니다. 종료하면 학생 화면이 잠기고 더 이상 저장되지 않습니다.</p>`, "종료", true))) return;
+    }
+    const open = !info.open;
+    const next = Object.assign({}, data.classes); next[c] = Object.assign({}, info, { open });
+    const upd = {}; upd[`classes/${c}/open`] = open; upd[`classes/${c}/${open ? "openedAt" : "closedAt"}`] = S.now();
+    FORMS.forEach((f) => (upd[`formOpen/${f}`] = Object.values(next).some((x) => x && x.open && x.form === f)));
+    await S.update("config", upd);
+  }
+  $("randBtn").onclick = async () => {
+    if (Object.values(data.classes).some((x) => x && x.open)) return toast("진행 중인 시험이 있으면 랜덤 배정을 할 수 없습니다.");
+    const n = Object.values(data.answers).length;
+    if (!(await confirmBox("형 랜덤 배정", `<p>1~${C.classCount}반에 ${FORMS.join("·")}형을 고르게 무작위로 배정합니다.${n ? `<br><b>이미 입장 기록이 ${n}건 있습니다.</b> 시작한 학생은 기존 형을 유지합니다.` : ""}</p>`, "배정"))) return;
+    const pool = []; for (let i = 0; i < C.classCount; i++) pool.push(FORMS[i % FORMS.length]);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const upd = {}; pool.forEach((f, i) => (upd[`classes/${i + 1}/form`] = f));
+    await S.update("config", upd); toast("형 배정을 마쳤습니다.");
+  };
+  $("blockPaste").onchange = (e) => S.update("config/settings", { blockPaste: e.target.checked });
+
+  /* ---------------- 답안 스프레드시트 ---------------- */
+  $("fCls").innerHTML = '<option value="">전체 반</option>' + Array.from({ length: C.classCount }, (_, i) => `<option value="${i + 1}">${i + 1}반</option>`).join("");
+  ["fCls", "fForm", "fState", "fName"].forEach((id) => $(id).addEventListener("input", renderSheet));
+  function allRecords() {
+    const list = Object.values(data.answers).filter((a) => a && a.sid);
+    const seen = new Set(list.map((a) => a.sid));
+    Object.keys(roster).forEach((sid) => {
+      if (seen.has(sid)) return; const p = U.parseSid(sid); if (!p) return;
+      list.push({ sid, cls: p.cls, no: p.no, form: (data.classes[p.cls] || {}).form || "", missing: true });
+    });
+    return list;
+  }
+  function rows() {
+    const fc = $("fCls").value, ff = $("fForm").value, fs = $("fState").value, fn = $("fName").value.trim();
+    return allRecords()
+      .filter((a) => !fc || +a.cls === +fc)
+      .filter((a) => !ff || a.form === ff)
+      .filter((a) => {
+        if (!fs) return true;
+        if (fs === "miss") return a.missing;
+        if (a.missing) return false;
+        if (fs === "sub") return a.submitted; if (fs === "ing") return !a.submitted;
+        if (fs === "bad") return nameInfo(a).state !== "ok";
+        return true;
+      })
+      .filter((a) => !fn || a.sid.includes(fn) || (roster[a.sid] || "").includes(fn))
+      .sort((x, y) => x.sid.localeCompare(y.sid));
+  }
+  function stateOf(a) { return a.missing ? '<span class="chip">미입장</span>' : a.submitted ? '<span class="chip ok">제출</span>' : '<span class="chip warn">작성 중</span>'; }
+  function renderSheet() {
+    const list = rows(); $("countChip").textContent = `${list.length}명`;
+    const nRoster = Object.keys(roster).length;
+    const bad = Object.values(data.answers).filter((a) => a && a.sid && nameInfo(a).state === "bad").length;
+    const none = Object.values(data.answers).filter((a) => a && a.sid && !roster[a.sid]).length;
+    const w = $("rosterWarn");
+    if (!nRoster) { w.innerHTML = "<b>명렬표를 불러오지 않았습니다.</b> 이름이 서버에 저장되지 않으므로, 설정 탭에서 명렬표를 불러와야 이름이 보이고 엑셀에도 이름이 들어갑니다."; w.classList.remove("hidden"); }
+    else if (bad || none) { w.innerHTML = `확인이 필요한 학생: 이름 불일치 <b>${bad}명</b>, 명렬표에 없는 학번 <b>${none}명</b> (상태에서 ‘이름 확인 필요’로 모아 볼 수 있습니다)`; w.classList.remove("hidden"); }
+    else w.classList.add("hidden");
+    const head = `<thead><tr><th class="stick">학번</th><th class="stick2">이름</th><th>형</th><th>상태</th><th>이탈</th><th>최종 저장</th>
+      ${QS.map((q) => `<th>${U.esc(q.no)}<small>${U.esc(q.title)}</small></th>`).join("")}
+      <th>과정<small>/10</small></th><th>탐구<small>/25</small></th><th>총점<small>/35</small></th></tr></thead>`;
+    const body = list.map((a) => {
+      if (a.missing) return `<tr data-miss="1"><td class="stick">${a.sid}</td><td class="stick2">${nameCell(a)}</td><td>${a.form ? `<span class="chip ${a.form}">${a.form}</span>` : ""}</td><td>${stateOf(a)}</td>
+        <td colspan="${QS.length + 5}" style="color:var(--ink-3)">아직 입장하지 않았습니다.</td></tr>`;
+      const g = data.grades[a.sid] || {}, ck = g.checks || {}, sc = U.score(ck, g.special);
+      return `<tr data-sid="${a.sid}"><td class="stick">${a.sid}</td><td class="stick2">${nameCell(a)}</td>
+        <td><span class="chip ${a.form}">${a.form}</span></td><td>${stateOf(a)}</td>
+        <td class="num" style="color:${a.leaveCount ? "var(--warn)" : "var(--ink-3)"}">${a.leaveCount || 0}</td>
+        <td style="white-space:nowrap;color:var(--ink-3)">${U.fmtTime(a.submittedAt || a.updatedAt)}</td>
+        ${QS.map((q) => { const t = U.toText(q, (a.answers || {})[q.id]); return `<td class="ans ${ck[q.id] ? "chk" : ""} ${t ? "" : "empty"}"><div>${t ? U.esc(t) : "미작성"}</div></td>`; }).join("")}
+        <td class="num">${sc.process ?? "-"}</td><td class="num">${sc.inquiry ?? "-"}</td><td class="num" style="color:var(--brand-ink)">${sc.total}${g.special ? "*" : ""}</td></tr>`;
+    }).join("");
+    $("sheet").innerHTML = head + `<tbody>${body || `<tr><td colspan="${QS.length + 9}" style="text-align:center;color:var(--ink-3);padding:30px">표시할 학생이 없습니다.</td></tr>`}</tbody>`;
+    $("sheet").querySelectorAll("tbody tr[data-sid]").forEach((tr) => (tr.onclick = () => openDrawer(tr.dataset.sid)));
+  }
+
+  /* ---------------- 학생별 채점 창 ---------------- */
+  function openDrawer(sid) { drawerSid = sid; renderDrawer(); }
+  function closeDrawer() { drawerSid = null; $("drawerRoot").innerHTML = ""; }
+  let drawerDirty = false;
+  function renderDrawer() {
+    const memo = document.getElementById("dMemo");
+    if (memo && document.activeElement === memo) { drawerDirty = true; return; }
+    drawerDirty = false;
+    const a = data.answers[drawerSid]; if (!a) return closeDrawer();
+    const keepScroll = document.querySelector(".drawer-body")?.scrollTop || 0;
+    const g = data.grades[drawerSid] || {}, ck = g.checks || {}, sc = U.score(ck, g.special);
+    const list = rows().filter((x) => !x.missing), idx = list.findIndex((x) => x.sid === drawerSid);
+    const f = C.forms[a.form] || {}, ni = nameInfo(a);
+    const nameTag = ni.state === "ok" ? U.esc(ni.name) : ni.state === "bad" ? `<span class="nm-bad">${U.esc(ni.name)}</span> <span class="chip bad">이름 불일치</span>` : '<span class="chip">명렬표 없음</span>';
+    $("drawerRoot").innerHTML = `<div class="drawer-back"></div><div class="drawer">
+      <div class="drawer-head">
+        <button class="btn icon" id="dPrev" ${idx <= 0 ? "disabled" : ""}>◀</button><button class="btn icon" id="dNext" ${idx < 0 || idx >= list.length - 1 ? "disabled" : ""}>▶</button>
+        <b style="font-size:16px">${a.sid} ${nameTag}</b><span class="chip ${a.form}">${f.label || a.form}</span>${stateOf(a)}
+        ${a.leaveCount ? `<span class="chip warn">이탈 ${a.leaveCount}회</span>` : ""}
+        <span style="flex:1"></span><button class="btn" id="dClose">닫기</button>
+      </div>
+      <div class="drawer-body">
+        ${ni.state === "bad" ? '<div class="notice" style="margin:0 0 12px;background:var(--bad-bg);color:var(--bad)">학생이 입력한 이름이 명렬표와 다릅니다. 학번을 잘못 입력했을 수 있으니 학생에게 확인해 주세요.</div>' : ""}
+        <div class="card" style="padding:12px 14px;margin-bottom:12px">
+          <div class="score-box"><div><b>${sc.process ?? "-"}</b><span>과정 (${sc.pc}/3)</span></div><div><b>${sc.inquiry ?? "-"}</b><span>탐구 (${sc.ic}/8)</span></div><div><b style="color:var(--brand)">${sc.total}</b><span>총점 / 35</span></div>
+          <div style="text-align:left;min-width:180px"><span>특수 처리</span><select class="input" id="dSpecial" style="margin-top:4px;padding:5px 8px">
+            <option value="">해당 없음 (기준 체크로 채점)</option><option value="blank" ${g.special === "blank" ? "selected" : ""}>미응시·백지 (${C.scoring.blank}점)</option><option value="absent" ${g.special === "absent" ? "selected" : ""}>장기 미인정 결석 (${C.scoring.absent}점)</option></select></div></div>
+          <div class="hint" style="margin-top:8px">지정 실험: ${U.esc(f.focusName || "")} · 시작 ${U.fmtTime(a.startedAt)} · ${a.submitted ? "제출 " + U.fmtTime(a.submittedAt) : "최종 저장 " + U.fmtTime(a.updatedAt)}</div>
+        </div>
+        ${QS.map((q) => { const t = U.toText(q, (a.answers || {})[q.id]); const on = !!ck[q.id];
+          return `<div class="card ga ${on ? "on" : ""}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <b>${U.esc(q.no)} · ${U.esc(q.title)}</b>${q.area === "extra" ? '<span class="chip">채점 제외</span>' : `<label class="check"><input type="checkbox" data-ck="${q.id}" ${on ? "checked" : ""}> 기준 충족</label>`}</div>
+            ${q.criterion ? `<div class="crit">채점 기준: ${U.esc(q.criterion)}</div>` : '<div class="crit"></div>'}
+            <div class="txt ${t ? "" : "empty"}">${t ? U.esc(t) : "미작성"}</div></div>`; }).join("")}
+        <div class="card ga"><b>교사 관찰 메모</b><div class="crit">질의응답 내용, 특이사항 등 (세부능력 및 특기사항 작성 참고용, 학생에게 보이지 않음)</div>
+          <textarea class="input" id="dMemo" rows="3">${U.esc(g.memo || "")}</textarea></div>
+        <div class="card ga"><b>관리</b><div class="crit">기기를 바꿔야 하는 학생, 실수로 제출한 학생 등에 사용합니다.</div>
+          <div class="bar" style="margin:0"><button class="btn sm" id="dDevice">기기 변경 허용</button><button class="btn sm" id="dReopen" ${a.submitted ? "" : "disabled"}>제출 취소 (다시 작성 허용)</button><button class="btn sm danger" id="dDelete">기록 삭제</button></div></div>
+      </div></div>`;
+    document.querySelector(".drawer-body").scrollTop = keepScroll;
+    $("dClose").onclick = closeDrawer; document.querySelector(".drawer-back").onclick = closeDrawer;
+    $("dPrev").onclick = () => openDrawer(list[idx - 1].sid); $("dNext").onclick = () => openDrawer(list[idx + 1].sid);
+    document.querySelectorAll("[data-ck]").forEach((cb) => (cb.onchange = () => S.set(`grades/${drawerSid}/checks/${cb.dataset.ck}`, cb.checked || null)));
+    $("dSpecial").onchange = (e) => S.set(`grades/${drawerSid}/special`, e.target.value || null);
+    let memoT; $("dMemo").oninput = (e) => { clearTimeout(memoT); const v = e.target.value; const sid = drawerSid; memoT = setTimeout(() => S.set(`grades/${sid}/memo`, v || null), 700); };
+    $("dMemo").onblur = () => { if (drawerDirty) setTimeout(renderDrawer, 50); };
+    $("dDevice").onclick = async () => { if (await confirmBox("기기 변경 허용", "<p>이 학번을 다른 컴퓨터나 브라우저에서 이어서 작성할 수 있게 합니다. 지금까지의 답안은 유지됩니다.</p>", "허용")) { await S.remove(`answers/${drawerSid}/uid`); toast("허용했습니다. 학생이 새 기기에서 다시 입장하면 됩니다."); } };
+    $("dReopen").onclick = async () => { if (await confirmBox("제출 취소", "<p>제출 상태를 풀어 학생이 다시 수정할 수 있게 합니다. 시험이 열려 있어야 수정할 수 있습니다.</p>", "제출 취소")) await S.update(`answers/${drawerSid}`, { submitted: false, submittedAt: null }); };
+    $("dDelete").onclick = async () => { if (await confirmBox("기록 삭제", `<p><b>${a.sid}</b> 학생의 답안과 채점 기록을 모두 삭제합니다. 되돌릴 수 없습니다.</p>`, "삭제", true)) { const sid = drawerSid; closeDrawer(); await S.remove(`answers/${sid}`); await S.remove(`grades/${sid}`); } };
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && drawerSid) closeDrawer(); });
+
+  /* ---------------- 엑셀 내보내기 ---------------- */
+  $("xlsxBtn").onclick = async () => {
+    const list = rows();
+    if (!list.length) return toast("내보낼 학생이 없습니다.");
+    if (!Object.keys(roster).length && !(await confirmBox("명렬표 없음", "<p>명렬표를 불러오지 않아 엑셀에 이름이 들어가지 않습니다. 그래도 내려받을까요?</p>", "내려받기"))) return;
+    const sp = { blank: "미응시·백지", absent: "장기 미인정 결석" }, nm = { ok: "일치", bad: "불일치(확인 필요)", none: "명렬표 없음" };
+    const out = list.map((a) => {
+      const g = data.grades[a.sid] || {}, ck = g.checks || {}, sc = U.score(ck, g.special);
+      const ni = a.missing ? { name: roster[a.sid] || "", state: "ok" } : nameInfo(a);
+      const r = { "학번": a.sid, "이름(명렬표)": ni.name, "이름 확인": a.missing ? "" : nm[ni.state], "반": +a.cls, "번호": +a.no, "형": a.form || "",
+        "상태": a.missing ? "미입장" : a.submitted ? "제출" : "미제출", "시작 시각": U.fmtTime(a.startedAt), "제출 시각": U.fmtTime(a.submittedAt), "이탈 횟수": a.leaveCount || 0 };
+      QS.forEach((q) => (r[`${q.no} ${q.title}`] = U.toText(q, (a.answers || {})[q.id])));
+      QS.filter((q) => q.area !== "extra").forEach((q) => (r[`[채점] ${q.no}`] = ck[q.id] ? "O" : ""));
+      Object.assign(r, { "과정 점수": a.missing ? "" : (sc.process ?? ""), "탐구 점수": a.missing ? "" : (sc.inquiry ?? ""), "총점": a.missing ? "" : sc.total, "특수 처리": sp[g.special] || "", "교사 메모": g.memo || "" });
+      return r;
+    });
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    if (window.XLSX) {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(out);
+      ws["!cols"] = Object.keys(out[0]).map((k) => ({ wch: /^(과정|탐구|기록) /.test(k) ? 40 : Math.max(8, k.length + 2) }));
+      XLSX.utils.book_append_sheet(wb, ws, "답안");
+      const info = FORMS.map((f) => ({ "형": f, "분야": C.forms[f].field, "논문": C.forms[f].paperTitle, "출처": C.forms[f].source, "지정 실험": C.forms[f].focusName, "쪽": C.forms[f].focusPages,
+        "배정 반": Object.entries(data.classes).filter(([, v]) => v && v.form === f).map(([k]) => k + "반").join(", ") }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(info), "형별 정보");
+      XLSX.writeFile(wb, `선행연구분석_답안_${stamp}.xlsx`);
+    } else {
+      const keys = Object.keys(out[0]);
+      const csv = "﻿" + [keys.join(",")].concat(out.map((r) => keys.map((k) => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","))).join("\n");
+      const el = document.createElement("a"); el.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); el.download = `선행연구분석_답안_${stamp}.csv`; el.click();
+    }
+  };
+
+  /* ---------------- 교사 관리 ---------------- */
+  function renderTeachers() {
+    const reqs = Object.entries(data.requests || {}).filter(([uid]) => !(data.teachers || {})[uid]);
+    $("reqList").innerHTML = reqs.length ? reqs.map(([uid, r]) => `<div class="t-item"><span><b>${U.esc(r.name || "")}</b> ${U.esc(r.email || "")} <span class="hint">${U.fmtTime(r.at)}</span></span>
+      <span class="bar" style="margin:0"><button class="btn sm primary" data-ok="${uid}">승인</button><button class="btn sm" data-no="${uid}">거절</button></span></div>`).join("")
+      : '<div class="hint">대기 중인 요청이 없습니다.</div>';
+    const ts = Object.entries(data.teachers || {}).filter(([uid]) => !uid.startsWith("_"));
+    $("tList").innerHTML = '<div class="t-item"><span><b>관리 교사</b> (보안 규칙에 등록된 계정)</span></div>' + ts.map(([uid, t]) => `<div class="t-item"><span><b>${U.esc(t.name || "")}</b> ${U.esc(t.email || "")}</span>
+      <button class="btn sm danger" data-del="${uid}">삭제</button></div>`).join("");
+    const guard = (fn) => async (e) => { if (!isOwner) return toast("승인과 삭제는 관리 교사만 할 수 있습니다."); try { await fn(e.currentTarget); } catch (err) { console.error(err); toast("처리하지 못했습니다."); } };
+    document.querySelectorAll("[data-ok]").forEach((b) => (b.onclick = guard(async (el) => { const uid = el.dataset.ok, r = data.requests[uid];
+      await S.set(`teachers/${uid}`, { email: r.email || "", name: r.name || "", addedAt: S.now() }); await S.remove(`teacherRequests/${uid}`); toast("승인했습니다."); })));
+    document.querySelectorAll("[data-no]").forEach((b) => (b.onclick = guard(async (el) => { await S.remove(`teacherRequests/${el.dataset.no}`); })));
+    document.querySelectorAll("[data-del]").forEach((b) => (b.onclick = guard(async (el) => {
+      if (await confirmBox("교사 삭제", "<p>이 선생님은 더 이상 교사 화면을 사용할 수 없게 됩니다.</p>", "삭제", true)) await S.remove(`teachers/${el.dataset.del}`); })));
+  }
+
+  /* ---------------- 전체 삭제 (관리 교사) ---------------- */
+  $("wipeBtn").onclick = async () => {
+    const n = Object.keys(data.answers).length;
+    if (!(await confirmBox("전체 답안·채점 기록 삭제", `<p>서버에 저장된 학생 답안 <b>${n}건</b>과 채점 기록을 모두 삭제합니다. <b>엑셀로 내려받아 보관했는지</b> 먼저 확인하세요. 되돌릴 수 없습니다.</p>`, "모두 삭제", true))) return;
+    if (!(await confirmBox("마지막 확인", "<p>정말 삭제할까요?</p>", "삭제", true))) return;
+    const ua = {}, ug = {}; Object.keys(data.answers).forEach((k) => (ua[k] = null)); Object.keys(data.grades).forEach((k) => (ug[k] = null));
+    try { if (Object.keys(ua).length) await S.update("answers", ua); if (Object.keys(ug).length) await S.update("grades", ug); toast("모두 삭제했습니다."); }
+    catch (e) { console.error(e); toast("삭제하지 못했습니다."); }
+  };
+
+  /* ---------------- 보안 규칙 (관리 교사) ---------------- */
+  function rulesText() {
+    const R = C.rootPath, email = (me && me.email) || "teacher@example.com";
+    const O = `auth != null && auth.token.email === '${email}' && auth.token.email_verified === true`;
+    const T = `auth != null && ((${O}) || root.child('${R}/teachers/' + auth.uid).exists())`;
+    const rules = { rules: { [R]: {
+      teachers: { ".read": T, ".write": O, "$uid": { ".read": "auth != null && auth.uid === $uid" } },
+      teacherRequests: { ".read": T, ".write": O, "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider === 'google.com'" } },
+      config: { ".read": "auth != null", ".write": T },
+      keys: { ".read": T, ".write": T, "$form": { ".read": `auth != null && root.child('${R}/config/formOpen/' + $form).val() === true` } },
+      grades: { ".read": T, ".write": T },
+      answers: { ".read": T, "$sid": {
+        ".read": "auth != null && (!data.exists() || !data.child('uid').exists() || data.child('uid').val() === auth.uid)",
+        ".write": `(${T}) || (auth != null && newData.exists() && newData.child('uid').val() === auth.uid && newData.child('sid').val() === $sid && root.child('${R}/config/classes/' + newData.child('cls').val() + '/open').val() === true && (!data.exists() || !data.child('uid').exists() || (data.child('uid').val() === auth.uid && data.child('submitted').val() !== true)) && (!data.exists() || newData.child('cls').val() === data.child('cls').val()))`
+      } }
+    } } };
+    return JSON.stringify(rules, null, 2);
+  }
+  function renderRules() { $("rulesPre").textContent = rulesText(); }
+  $("copyRules").onclick = async () => { try { await navigator.clipboard.writeText(rulesText()); toast("규칙을 복사했습니다."); } catch (e) { toast("복사하지 못했습니다. 직접 선택해 복사하세요."); } };
+
+  /* ---------------- 데모 도구 ---------------- */
+  if (S.isDemo) {
+    $("demoReset").onclick = async () => { if (await confirmBox("데모 초기화", "<p>데모 데이터와 이 브라우저의 명렬표를 모두 지웁니다.</p>", "지우기", true)) { S.resetDemo(); try { localStorage.removeItem(RKEY); } catch (e) {} loadRoster(); } };
+    $("demoSeed").onclick = async () => {
+      const names = ["김민준", "이서연", "박지호", "최하은", "정도윤", "강서진"];
+      const sample = { p1: "해파리와 옥수수 속대를 섞어 식물생장촉진제를 만들고, 비율에 따라 식물 생장 효과와 토양 영향을 알아보는 것이 목적이다.", p2: "촉진제를 3가지 비율과 2가지 형태로 만들고 성분을 분석한 뒤, 스마트팜에서 발아·생장 실험과 토양 분석을 했다.", p3: "3:7 비율이 가장 효과적이었고 7:3 고체형은 오히려 생장을 방해했다.",
+        q1: "옥수수 속대 비율이 높은 촉진제를 넣으면 씨앗의 발아율이 높아질 것이다.", q2: "해파리:옥수수 속대 비율(7:3, 5:5, 3:7), 촉진제 형태(고체, 액체)", q3: "10일 동안의 정상 발아 종자 수, 발아율, 발아세, 평균 발아 일수", q4: "씨앗 수 50립, 심는 깊이 1cm, 스마트팜의 물·온도·습도·빛",
+        q5: ["촉진제를 섞은 배양토를 플랜트 박스에 담는다", "씨앗을 1cm 깊이로 50립씩 심는다", "매일 같은 시간에 발아 개체 수를 10일간 센다", "발아율 등을 계산한다"],
+        q6: "가설이 옳다면 3:7 촉진제에서 발아율이 가장 높을 것이다.", q7: ["발아율", "식물 호르몬", "대조군"], q8: "대조군은 촉진제를 넣지 않은 토양으로, 효과를 비교하는 기준이 된다." };
+      const upd = {}, ros = {};
+      for (let i = 0; i < names.length; i++) {
+        const cls = (i % 3) + 1, sid = `1${String(cls).padStart(2, "0")}${String(i + 1).padStart(2, "0")}`;
+        ros[sid] = names[i];
+        const typed = i === 3 ? "최하늘" : names[i];   // 한 명은 이름을 잘못 입력한 예시
+        const ans = {}; Object.keys(sample).forEach((k, j) => { if (j < 6 + i) ans[k] = sample[k]; });
+        upd[sid] = { uid: "seed" + i, sid, cls, no: i + 1, nameHash: await U.nameHash(sid, typed), form: ["A", "B", "C"][i % 3], startedAt: Date.now() - 3e6, updatedAt: Date.now() - 6e5, submitted: i % 2 === 0, submittedAt: i % 2 === 0 ? Date.now() - 6e5 : null, leaveCount: i % 4, answers: ans };
+      }
+      ros["10107"] = "윤지우"; ros["10208"] = "한예린";   // 아직 입장하지 않은 학생 예시
+      await S.update("answers", upd); saveRoster(ros); toast("가상 학생 답안과 명렬표를 만들었습니다.");
+    };
+  }
+})();
+</script>
+</body>
+</html>
