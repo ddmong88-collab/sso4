@@ -135,7 +135,7 @@
       <select class="input" id="fForm" style="width:100px"><option value="">전체 형</option><option>A</option><option>B</option><option>C</option></select>
       <select class="input" id="fState" style="width:150px">
         <option value="">전체 상태</option><option value="sub">제출 완료</option><option value="ing">작성 중</option>
-        <option value="miss">미입장 (명렬표 기준)</option><option value="bad">이름 확인 필요</option><option value="ai">AI 확인 필요</option></select>
+        <option value="miss">미입장 (명렬표 기준)</option><option value="bad">이름 확인 필요</option><option value="ai">AI 확인 필요</option><option value="star">★ 우수 사례</option></select>
       <input class="input" id="fName" placeholder="이름·학번 검색" style="width:150px">
       <span style="flex:1"></span>
       <span class="chip" id="countChip"></span>
@@ -451,6 +451,7 @@
         if (a.missing) return false;
         if (fs === "sub") return a.submitted; if (fs === "ing") return !a.submitted;
         if (fs === "bad") return nameInfo(a).state !== "ok";
+        if (fs === "star") return Object.values((data.grades[a.sid] || {}).excellent || {}).some(Boolean);
         if (fs === "ai") return ((data.grades[a.sid] || {}).ai || {}).review && Object.keys(data.grades[a.sid].ai.review).length > 0;
         return true;
       })
@@ -478,7 +479,7 @@
         <td><span class="chip ${a.form}">${a.form}</span></td><td>${stateOf(a)}</td>
         <td class="num" style="color:${a.leaveCount ? "var(--warn)" : "var(--ink-3)"}">${a.leaveCount || 0}</td>
         <td style="white-space:nowrap;color:var(--ink-3)">${U.fmtTime(a.submittedAt || a.updatedAt)}</td>
-        ${QS.map((q) => { const t = U.toText(q, (a.answers || {})[q.id]); const rv = ((g.ai || {}).review || {})[q.id]; return `<td class="ans ${ck[q.id] ? "chk" : ""} ${rv ? "rev" : ""} ${t ? "" : "empty"}" ${rv ? 'title="AI 1차 채점: 확인 필요"' : ""}><div>${t ? U.esc(t) : "미작성"}</div></td>`; }).join("")}
+        ${QS.map((q) => { const t = U.toText(q, (a.answers || {})[q.id]); const rv = ((g.ai || {}).review || {})[q.id], ex = (g.excellent || {})[q.id]; return `<td class="ans ${ck[q.id] ? "chk" : ""} ${rv ? "rev" : ""} ${t ? "" : "empty"}" ${rv ? 'title="확인 필요: 교사가 판단해 주세요"' : ""}><div>${ex ? '<b style="color:#b7791f">★</b> ' : ""}${t ? U.esc(t) : "미작성"}</div></td>`; }).join("")}
         <td class="num">${sc.process ?? "-"}</td><td class="num">${sc.inquiry ?? "-"}</td><td class="num" style="color:var(--brand-ink)">${sc.total}${g.special ? "*" : ""}</td></tr>`;
     }).join("");
     $("sheet").innerHTML = head + `<tbody>${body || `<tr><td colspan="${QS.length + 9}" style="text-align:center;color:var(--ink-3);padding:30px">표시할 학생이 없습니다.</td></tr>`}</tbody>`;
@@ -516,7 +517,7 @@
         </div>
         ${QS.map((q) => { const t = U.toText(q, (a.answers || {})[q.id]); const on = !!ck[q.id];
           return `<div class="card ga ${on ? "on" : ""}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-            <b>${U.esc(q.no)} · ${U.esc(q.title)}</b>${q.area === "extra" ? '<span class="chip">채점 제외</span>' : `<label class="check"><input type="checkbox" data-ck="${q.id}" ${on ? "checked" : ""}> 기준 충족</label>`}</div>
+            <b>${U.esc(q.no)} · ${U.esc(q.title)}</b>${q.area === "extra" ? '<span class="chip">채점 제외</span>' : `<span style="display:flex;gap:6px"><label class="check" title="세특 작성에 활용할 깊이 있는 답"><input type="checkbox" data-ex="${q.id}" ${(g.excellent || {})[q.id] ? "checked" : ""}> ★ 우수 사례</label><label class="check"><input type="checkbox" data-ck="${q.id}" ${on ? "checked" : ""}> 기준 충족</label></span>`}</div>
             ${q.criterion ? `<div class="crit">채점 기준: ${U.esc(q.criterion)}</div>` : '<div class="crit"></div>'}
             <div class="txt ${t ? "" : "empty"}">${t ? U.esc(t) : "미작성"}</div>${aiNote(g, q)}</div>`; }).join("")}
         <div class="card ga"><b>교사 관찰 메모</b><div class="crit">질의응답 내용, 특이사항 등 (세부능력 및 특기사항 작성 참고용, 학생에게 보이지 않음)</div>
@@ -527,7 +528,19 @@
     document.querySelector(".drawer-body").scrollTop = keepScroll;
     $("dClose").onclick = closeDrawer; document.querySelector(".drawer-back").onclick = closeDrawer;
     $("dPrev").onclick = () => openDrawer(list[idx - 1].sid); $("dNext").onclick = () => openDrawer(list[idx + 1].sid);
-    document.querySelectorAll("[data-ck]").forEach((cb) => (cb.onchange = () => S.set(`grades/${drawerSid}/checks/${cb.dataset.ck}`, cb.checked || null)));
+    document.querySelectorAll("[data-ck]").forEach((cb) => (cb.onchange = async () => {
+      const sid = drawerSid, qid = cb.dataset.ck;
+      await S.set(`grades/${sid}/checks/${qid}`, cb.checked || null);
+      if (((data.grades[sid] || {}).ai || {}).review && data.grades[sid].ai.review[qid]) {   // 교사가 판단하면 확인 필요 해제
+        await S.update(`grades/${sid}/ai`, { [`review/${qid}`]: null, [`decided/${qid}`]: true });
+      }
+    }));
+    document.querySelectorAll("[data-no-ok]").forEach((bt) => (bt.onclick = async () => {
+      const sid = drawerSid, qid = bt.dataset.noOk;
+      await S.set(`grades/${sid}/checks/${qid}`, null);
+      await S.update(`grades/${sid}/ai`, { [`review/${qid}`]: null, [`decided/${qid}`]: true });
+    }));
+    document.querySelectorAll("[data-ex]").forEach((cb) => (cb.onchange = () => S.set(`grades/${drawerSid}/excellent/${cb.dataset.ex}`, cb.checked || null)));
     $("dSpecial").onchange = (e) => S.set(`grades/${drawerSid}/special`, e.target.value || null);
     let memoT; $("dMemo").oninput = (e) => { clearTimeout(memoT); const v = e.target.value; const sid = drawerSid; memoT = setTimeout(() => S.set(`grades/${sid}/memo`, v || null), 700); };
     $("dMemo").onblur = () => { if (drawerDirty) setTimeout(renderDrawer, 50); };
@@ -550,7 +563,8 @@
         "상태": a.missing ? "미입장" : a.submitted ? "제출" : "미제출", "시작 시각": U.fmtTime(a.startedAt), "제출 시각": U.fmtTime(a.submittedAt), "이탈 횟수": a.leaveCount || 0 };
       QS.forEach((q) => (r[`${q.no} ${q.title}`] = U.toText(q, (a.answers || {})[q.id])));
       QS.filter((q) => q.area !== "extra").forEach((q) => (r[`[채점] ${q.no}`] = ck[q.id] ? "O" : ""));
-      Object.assign(r, { "과정 점수": a.missing ? "" : (sc.process ?? ""), "탐구 점수": a.missing ? "" : (sc.inquiry ?? ""), "총점": a.missing ? "" : sc.total, "특수 처리": sp[g.special] || "", "교사 메모": g.memo || "" });
+      Object.assign(r, { "과정 점수": a.missing ? "" : (sc.process ?? ""), "탐구 점수": a.missing ? "" : (sc.inquiry ?? ""), "총점": a.missing ? "" : sc.total, "특수 처리": sp[g.special] || "",
+        "★ 우수 사례 문항": QS.filter((q) => (g.excellent || {})[q.id]).map((q) => q.no).join(", "), "교사 메모": g.memo || "" });
       return r;
     });
     const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -574,10 +588,10 @@
   function aiNote(g, q) {
     const ai = (g || {}).ai; if (!ai || q.area === "extra") return "";
     const rv = (ai.review || {})[q.id], why = (ai.reasons || {})[q.id] || "";
-    const verdict = (ai.verdict || {})[q.id];
+    const verdict = (ai.verdict || {})[q.id], decided = (ai.decided || {})[q.id];
     if (!rv && !why && verdict === undefined) return "";
-    const label = rv ? "AI 1차 채점: 확인 필요" : verdict ? "AI 1차 채점: 충족" : "AI 1차 채점: 미충족";
-    return `<div class="ai-note ${rv ? "rev" : ""}"><b>${label}</b>${why ? " · " + U.esc(why) : ""}</div>`;
+    const label = decided ? "AI 1차 채점: 확인 필요였던 문항 · 선생님 판단 완료" : rv ? "AI 1차 채점: 확인 필요 (선생님이 판단해 주세요)" : verdict ? "AI 1차 채점: 충족" : "AI 1차 채점: 미충족";
+    return `<div class="ai-note ${rv ? "rev" : ""}"><b>${label}</b>${why ? " · " + U.esc(why) : ""}${rv ? `<div style="margin-top:6px;font-size:12.5px">충족이면 ‘기준 충족’을 체크하고, 미충족이면 <button class="btn sm" data-no-ok="${q.id}">미충족으로 판단</button>을 누르세요.</div>` : ""}</div>`;
   }
   const normH = (h) => String(h == null ? "" : h).replace(/\s+/g, "");
   function parseImport(rows) {
@@ -593,17 +607,19 @@
     const out = {};
     rows.slice(hi + 1).forEach((r) => {
       const sid = normH(r[sidCol]).replace(/\D/g, ""); if (!/^\d{5}$/.test(sid)) return;
-      const checks = {}, review = {}, reasons = {}, verdict = {};
+      const checks = {}, review = {}, reasons = {}, verdict = {}, excellent = {};
       Object.entries(cols).forEach(([qid, c]) => {
         if (c.mark < 0) return;
         const v = normH(r[c.mark]).toUpperCase();
-        const yes = /^(O|○|◯|1|TRUE|충족|Y|YES)$/.test(v), rev = /^(\?|△|확인|확인필요|REVIEW)$/.test(v);
+        const star = /★|☆|\*/.test(v), v2 = v.replace(/[★☆*]/g, "");
+        const yes = /^(O|○|◯|1|TRUE|충족|Y|YES)$/.test(v2) || (star && !v2), rev = /^(\?|△|확인|확인필요|REVIEW)$/.test(v2);
+        if (star) excellent[qid] = true;
         if (yes) checks[qid] = true;
         if (rev) review[qid] = true;
         verdict[qid] = yes;
         if (c.why >= 0 && String(r[c.why] || "").trim()) reasons[qid] = String(r[c.why]).trim().slice(0, 300);
       });
-      out[sid] = { checks, review, reasons, verdict };
+      out[sid] = { checks, review, reasons, verdict, excellent };
     });
     return out;
   }
@@ -620,7 +636,7 @@
     const root = $("modalRoot");
     root.innerHTML = `<div class="modal-back"><div class="modal"><h3>채점 결과 불러오기</h3>
       <p>답안이 있는 학생 <b>${known.length}명</b>의 채점을 반영합니다.${unknown.length ? `<br>답안이 없는 학번 ${unknown.length}개는 건너뜁니다.` : ""}</p>
-      <p>‘확인 필요’로 표시된 문항: <b>${nRev}개</b> (주황색 테두리로 표시되며, 상태에서 ‘AI 확인 필요’로 모아 볼 수 있습니다)</p>
+      <p>‘확인 필요’로 표시된 문항: <b>${nRev}개</b> (체크하지 않은 상태로 들어오고 주황색 테두리로 표시됩니다. 상태에서 ‘AI 확인 필요’로 모아 볼 수 있고, 선생님이 판단해 체크하면 표시가 사라집니다)</p>
       ${graded.length ? `<label class="switch" style="margin:6px 0"><input type="checkbox" id="impOver"> 선생님이 이미 직접 채점한 학생 ${graded.length}명도 덮어쓰기</label>` : ""}
       <p class="hint">불러온 결과는 1차 채점입니다. 최종 점수는 선생님이 확인하고 고친 뒤 확정해 주세요.</p>
       <div class="actions"><button class="btn" data-r="0">취소</button><button class="btn primary" data-r="1">반영하기</button></div></div></div>`;
@@ -634,6 +650,7 @@
         const p = parsed[s];
         upd[`${s}/checks`] = Object.keys(p.checks).length ? p.checks : null;
         upd[`${s}/ai`] = { reasons: p.reasons, review: p.review, verdict: p.verdict, at: S.now(), file: f.name.slice(0, 80) };
+        upd[`${s}/excellent`] = Object.keys(p.excellent).length ? p.excellent : null;
         n++;
       });
       try { if (n) await S.update("grades", upd); toast(`${n}명의 1차 채점을 반영했습니다.`, 3000); }

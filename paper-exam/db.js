@@ -108,12 +108,17 @@
     answered(q, v) {
       if (v === undefined || v === null) return false;
       if (q.type === "steps" || q.type === "keywords") return Array.isArray(v) && v.some((x) => String(x || "").trim());
+      if (q.type === "pair") { if (typeof v === "string") return v.trim().length > 0; return (q.fields || []).every((f) => String((v || {})[f.key] || "").trim()); }
       return String(v).trim().length > 0;
     },
     toText(q, v) {
       if (v === undefined || v === null) return "";
       if (q.type === "steps") return (v || []).filter((x) => String(x || "").trim()).map((x, i) => (i + 1) + ". " + x.trim()).join("\n");
       if (q.type === "keywords") return (v || []).filter((x) => String(x || "").trim()).map((x) => x.trim()).join(", ");
+      if (q.type === "pair") {
+        if (typeof v === "string") return v;
+        return (q.fields || []).map((f) => `[${f.label}] ${String((v || {})[f.key] || "").trim()}`).filter((t) => !/\]\s*$/.test(t)).join("\n");
+      }
       return String(v);
     },
     /* 채점 체크 → 점수 */

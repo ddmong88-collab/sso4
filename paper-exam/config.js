@@ -78,9 +78,13 @@ window.EXAM_CONFIG = {
       title: "탐구 방법과 실험 설계",
       prompt: "연구자들이 어떤 실험들을 어떤 순서로 진행했는지, 논문 전체의 탐구 방법과 실험 설계를 요약하세요.",
       criterion: "탐구 방법 및 실험 설계를 파악하여 요약하였는가?" },
-    { id: "p3", area: "process", no: "과정 ③", scope: "paper", type: "text", rows: 5,
+    { id: "p3", area: "process", no: "과정 ③", scope: "paper", type: "pair", rows: 3,
+      fields: [
+        { key: "result", label: "결과", hint: "실험에서 관찰하거나 측정한 사실 (예: 무엇이 가장 높았는지, 어떤 차이가 있었는지)" },
+        { key: "conclusion", label: "결론", hint: "결과를 바탕으로 연구자가 내린 판단 (예: 그래서 무엇이 효과적이라고 했는지)" }
+      ],
       title: "주요 실험 결과와 결론",
-      prompt: "주요 실험 결과와 연구자가 내린 결론을 요약하세요.",
+      prompt: "결과와 결론을 나누어 쓰세요. 결과는 실험에서 관찰·측정한 사실이고, 결론은 그 결과로부터 연구자가 내린 판단입니다.",
       criterion: "주요 실험 결과 및 결론을 요약하였는가?" },
 
     { id: "q1", area: "inquiry", no: "탐구 ①", scope: "focus", type: "text", rows: 3,

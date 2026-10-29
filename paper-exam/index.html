@@ -253,6 +253,21 @@
         ctl.children[0].onclick = () => { if (st.locked) return; if (arr.length < 15) { arr.push(""); render(); } };
         ctl.children[1].onclick = () => { if (st.locked) return; if (arr.length > 3) { arr.pop(); st.answers[q.id] = arr.slice(); render(); changed(); } };
         render();
+      } else if (q.type === "pair") {
+        let obj = st.answers[q.id];
+        if (typeof obj === "string") obj = { [q.fields[0].key]: obj };
+        obj = Object.assign({}, obj || {});
+        q.fields.forEach((f) => {
+          const wrap = document.createElement("div"); wrap.style.marginBottom = "10px";
+          wrap.innerHTML = `<label style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;margin-bottom:4px">
+            <span class="scope focus" style="background:var(--brand-2);color:var(--brand-ink)">${U.esc(f.label)}</span>
+            <span style="font-weight:500;font-size:12.5px;color:var(--ink-3)">${U.esc(f.hint || "")}</span></label>
+            <textarea class="input" rows="${q.rows || 3}"></textarea><div class="q-foot"><span class="cnt">0자</span></div>`;
+          const ta = wrap.querySelector("textarea"); ta.value = obj[f.key] || "";
+          const cnt = wrap.querySelector(".cnt"); const upd = () => (cnt.textContent = ta.value.trim().length + "자"); upd();
+          ta.addEventListener("input", () => { obj[f.key] = ta.value; st.answers[q.id] = Object.assign({}, obj); upd(); changed(); });
+          body.appendChild(wrap);
+        });
       } else if (q.type === "keywords") {
         const arr = Array.isArray(st.answers[q.id]) ? st.answers[q.id].slice() : ["", "", ""];
         while (arr.length < 3) arr.push("");
