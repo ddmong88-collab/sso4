@@ -151,7 +151,12 @@
     $("loginBtn").disabled = true;
     try {
       await S.signInStudent();
-      Object.assign(st, { sid, name, cls: p.cls, no: p.no, nameHash: await U.nameHash(sid, name) });
+      // 같은 탭에서 다시 로그인할 때 이전 시험의 잠금·제출 상태가 남지 않도록 초기화합니다.
+      clearTimeout(saveTimer);
+      Object.assign(st, { sid, name, cls: p.cls, no: p.no, nameHash: await U.nameHash(sid, name),
+        form: null, answers: {}, locked: false, submitted: false, leave: 0 });
+      $("modalRoot").innerHTML = "";
+      $("submitTop").disabled = $("submitBottom").disabled = false;
       try { localStorage.setItem("lastStudent", JSON.stringify({ sid, name })); } catch (e) {}
       waitForOpen();
     } catch (err) {
@@ -201,6 +206,8 @@
     try { const bk = JSON.parse(localStorage.getItem("bk:" + st.sid) || "null"); if (bk && bk.t > ((rec && rec.updatedAt) || 0)) st.answers = Object.assign({}, st.answers, bk.a); } catch (e) {}
     st.leave = (rec && rec.leaveCount) || 0;
     buildExam();
+    setSave("ok", "자동 저장 켜짐");
+    applyLock();
     openPdf();
   }
 
