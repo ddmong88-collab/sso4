@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
+<script src="autograde.js"></script>
 <style>
   .tabs { display: flex; gap: 4px; padding: 0 18px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 56px; z-index: 15; }
   .tabs button { border: 0; background: none; padding: 12px 14px 10px; font-weight: 600; color: var(--ink-3); border-bottom: 2.5px solid transparent; }
@@ -135,11 +136,13 @@
       <select class="input" id="fForm" style="width:100px"><option value="">전체 형</option><option>A</option><option>B</option><option>C</option></select>
       <select class="input" id="fState" style="width:150px">
         <option value="">전체 상태</option><option value="sub">제출 완료</option><option value="ing">작성 중</option>
-        <option value="miss">미입장 (명렬표 기준)</option><option value="bad">이름 확인 필요</option><option value="ai">AI 확인 필요</option><option value="star">★ 우수 사례</option></select>
+        <option value="miss">미입장 (명렬표 기준)</option><option value="bad">이름 확인 필요</option><option value="ai">확인 필요(?) 있음</option><option value="star">★ 우수 사례</option></select>
       <input class="input" id="fName" placeholder="이름·학번 검색" style="width:150px">
       <span style="flex:1"></span>
       <span class="chip" id="countChip"></span>
-      <button class="btn" id="importBtn" title="AI 1차 채점 파일(엑셀)을 불러와 체크를 한 번에 채웁니다">채점 결과 불러오기</button>
+      <button class="btn primary" id="autoBtn" title="형별 채점 기준표의 키워드로 지금 보이는 학생들을 한 번에 1차 채점합니다">키워드 자동 채점</button>
+      <button class="btn" id="claudeExpBtn" title="이름을 뺀 답안 파일을 만듭니다. Claude 대화에 올려 서술형 1차 채점을 받을 때 사용합니다">Claude 채점용 파일</button>
+      <button class="btn" id="importBtn" title="Claude 1차 채점 파일(엑셀)을 불러와 체크를 한 번에 채웁니다">채점 결과 불러오기</button>
       <input type="file" id="importFile" accept=".xlsx,.xls,.csv" class="hidden">
       <button class="btn primary" id="xlsxBtn">엑셀로 내려받기</button>
     </div>
@@ -590,7 +593,8 @@
     const rv = (ai.review || {})[q.id], why = (ai.reasons || {})[q.id] || "";
     const verdict = (ai.verdict || {})[q.id], decided = (ai.decided || {})[q.id];
     if (!rv && !why && verdict === undefined) return "";
-    const label = decided ? "AI 1차 채점: 확인 필요였던 문항 · 선생님 판단 완료" : rv ? "AI 1차 채점: 확인 필요 (선생님이 판단해 주세요)" : verdict ? "AI 1차 채점: 충족" : "AI 1차 채점: 미충족";
+    const src = ((ai.source || {})[q.id] === "keyword") ? "키워드 1차 채점" : "Claude 1차 채점";
+    const label = decided ? `${src}: 확인 필요였던 문항 · 선생님 판단 완료` : rv ? `${src}: 확인 필요 (선생님이 판단해 주세요)` : verdict ? `${src}: 충족` : `${src}: 미충족`;
     return `<div class="ai-note ${rv ? "rev" : ""}"><b>${label}</b>${why ? " · " + U.esc(why) : ""}${rv ? `<div style="margin-top:6px;font-size:12.5px">충족이면 ‘기준 충족’을 체크하고, 미충족이면 <button class="btn sm" data-no-ok="${q.id}">미충족으로 판단</button>을 누르세요.</div>` : ""}</div>`;
   }
   const normH = (h) => String(h == null ? "" : h).replace(/\s+/g, "");
@@ -607,19 +611,16 @@
     const out = {};
     rows.slice(hi + 1).forEach((r) => {
       const sid = normH(r[sidCol]).replace(/\D/g, ""); if (!/^\d{5}$/.test(sid)) return;
-      const checks = {}, review = {}, reasons = {}, verdict = {}, excellent = {};
+      const marks = {};
       Object.entries(cols).forEach(([qid, c]) => {
         if (c.mark < 0) return;
         const v = normH(r[c.mark]).toUpperCase();
         const star = /★|☆|\*/.test(v), v2 = v.replace(/[★☆*]/g, "");
         const yes = /^(O|○|◯|1|TRUE|충족|Y|YES)$/.test(v2) || (star && !v2), rev = /^(\?|△|확인|확인필요|REVIEW)$/.test(v2);
-        if (star) excellent[qid] = true;
-        if (yes) checks[qid] = true;
-        if (rev) review[qid] = true;
-        verdict[qid] = yes;
-        if (c.why >= 0 && String(r[c.why] || "").trim()) reasons[qid] = String(r[c.why]).trim().slice(0, 300);
+        if (!v2 && !star) return;                       // 빈 칸은 바꾸지 않음
+        marks[qid] = { mark: yes ? "O" : rev ? "?" : "X", star, why: c.why >= 0 ? String(r[c.why] || "").trim().slice(0, 300) : "" };
       });
-      out[sid] = { checks, review, reasons, verdict, excellent };
+      out[sid] = marks;
     });
     return out;
   }
@@ -631,31 +632,107 @@
     try { const wb = XLSX.read(await f.arrayBuffer(), { type: "array" }); parsed = parseImport(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" })); } catch (err) { console.error(err); }
     if (!parsed || !Object.keys(parsed).length) return toast("‘학번’ 열과 ‘[채점] 과정 ①’ 같은 채점 열을 찾지 못했습니다.", 4000);
     const sids = Object.keys(parsed), known = sids.filter((s) => data.answers[s]), unknown = sids.filter((s) => !data.answers[s]);
-    const graded = known.filter((s) => { const g = data.grades[s] || {}; return !g.ai && Object.values(g.checks || {}).some(Boolean); });
-    const nRev = known.reduce((n, s) => n + Object.keys(parsed[s].review).length, 0);
+    const graded = known.filter(isManual);
+    const nRev = known.reduce((n, s) => n + Object.values(parsed[s]).filter((m) => m.mark === "?").length, 0);
     const root = $("modalRoot");
     root.innerHTML = `<div class="modal-back"><div class="modal"><h3>채점 결과 불러오기</h3>
-      <p>답안이 있는 학생 <b>${known.length}명</b>의 채점을 반영합니다.${unknown.length ? `<br>답안이 없는 학번 ${unknown.length}개는 건너뜁니다.` : ""}</p>
-      <p>‘확인 필요’로 표시된 문항: <b>${nRev}개</b> (체크하지 않은 상태로 들어오고 주황색 테두리로 표시됩니다. 상태에서 ‘AI 확인 필요’로 모아 볼 수 있고, 선생님이 판단해 체크하면 표시가 사라집니다)</p>
+      <p>답안이 있는 학생 <b>${known.length}명</b>의 채점을 반영합니다. 파일에 있는 문항만 바뀌고, 나머지 문항(키워드 자동 채점 결과 등)은 그대로 둡니다.${unknown.length ? `<br>답안이 없는 학번 ${unknown.length}개는 건너뜁니다.` : ""}</p>
+      <p>‘확인 필요’ 문항: <b>${nRev}개</b> (체크하지 않은 상태로 들어오고 주황색 테두리로 표시됩니다)</p>
       ${graded.length ? `<label class="switch" style="margin:6px 0"><input type="checkbox" id="impOver"> 선생님이 이미 직접 채점한 학생 ${graded.length}명도 덮어쓰기</label>` : ""}
-      <p class="hint">불러온 결과는 1차 채점입니다. 최종 점수는 선생님이 확인하고 고친 뒤 확정해 주세요.</p>
+      <p class="hint">선생님이 이미 판단한 문항은 바꾸지 않습니다. 최종 점수는 선생님이 확인하고 확정해 주세요.</p>
       <div class="actions"><button class="btn" data-r="0">취소</button><button class="btn primary" data-r="1">반영하기</button></div></div></div>`;
     root.querySelector('[data-r="0"]').onclick = () => (root.innerHTML = "");
     root.querySelector('[data-r="1"]').onclick = async () => {
       const over = !!(document.getElementById("impOver") || {}).checked;
       root.innerHTML = "";
       const upd = {}; let n = 0;
-      known.forEach((s) => {
-        if (graded.includes(s) && !over) return;
-        const p = parsed[s];
-        upd[`${s}/checks`] = Object.keys(p.checks).length ? p.checks : null;
-        upd[`${s}/ai`] = { reasons: p.reasons, review: p.review, verdict: p.verdict, at: S.now(), file: f.name.slice(0, 80) };
-        upd[`${s}/excellent`] = Object.keys(p.excellent).length ? p.excellent : null;
-        n++;
-      });
+      known.forEach((sid) => { if (isManual(sid) && !over) return; if (writeMarks(upd, sid, parsed[sid], "claude")) n++; });
       try { if (n) await S.update("grades", upd); toast(`${n}명의 1차 채점을 반영했습니다.`, 3000); }
       catch (err) { console.error(err); toast("반영하지 못했습니다. 다시 시도하세요."); }
     };
+  };
+
+  /* 공통: 1차 채점 결과를 grades에 쓰기 (선생님이 판단한 문항은 건드리지 않음) */
+  function isManual(sid) { const g = data.grades[sid] || {}; return !g.ai && Object.values(g.checks || {}).some(Boolean); }
+  function writeMarks(upd, sid, marks, source) {
+    const g = data.grades[sid] || {}, decided = (g.ai || {}).decided || {};
+    let wrote = 0;
+    Object.entries(marks).forEach(([qid, m]) => {
+      if (decided[qid]) return;
+      const base = `${sid}/ai`;
+      upd[`${sid}/checks/${qid}`] = m.mark === "O" ? true : null;
+      upd[`${base}/verdict/${qid}`] = m.mark === "O";
+      upd[`${base}/review/${qid}`] = m.mark === "?" ? true : null;
+      upd[`${base}/reasons/${qid}`] = m.why || null;
+      upd[`${base}/source/${qid}`] = source;
+      if (m.star) upd[`${sid}/excellent/${qid}`] = true;
+      wrote++;
+    });
+    if (wrote) upd[`${sid}/ai/at`] = S.now();
+    return wrote > 0;
+  }
+
+  /* ---------------- 키워드 자동 채점 ---------------- */
+  $("autoBtn").onclick = () => {
+    if (!window.AutoGrade) return toast("자동 채점 규칙을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.");
+    const list = rows().filter((a) => !a.missing);
+    if (!list.length) return toast("채점할 학생이 없습니다. 위쪽 반·형·상태 선택을 확인하세요.");
+    const nSub = list.filter((a) => a.submitted).length, graded = list.filter((a) => isManual(a.sid)).length;
+    const root = $("modalRoot");
+    root.innerHTML = `<div class="modal-back"><div class="modal"><h3>키워드 자동 채점</h3>
+      <p>지금 표에 보이는 학생 <b>${list.length}명</b>(제출 ${nSub}명)을 형별 채점 기준표의 키워드로 1차 채점합니다.</p>
+      <label class="switch" style="margin:4px 0"><input type="checkbox" id="agSub" checked> 제출한 학생만 채점</label>
+      ${graded ? `<br><label class="switch" style="margin:4px 0"><input type="checkbox" id="agOver"> 선생님이 이미 직접 채점한 학생 ${graded}명도 다시 채점</label>` : ""}
+      <div class="notice" style="margin-top:10px">· 키워드가 분명하면 <b>충족</b>, 일부만 있으면 <b>확인 필요(?)</b>, 비었거나 핵심 단어가 없으면 <b>미충족</b>으로 표시합니다.<br>
+      · 서술형(과정 ③, 탐구 ⑥, 탐구 ⑧)은 키워드로 판단하지 않고 <b>확인 필요</b>로 남깁니다. ‘Claude 채점용 파일’로 Claude에게 1차 채점을 받거나 직접 판단해 주세요.<br>
+      · 선생님이 이미 판단한 문항은 바꾸지 않습니다.</div>
+      <div class="actions"><button class="btn" data-r="0">취소</button><button class="btn primary" data-r="1">채점하기</button></div></div></div>`;
+    root.querySelector('[data-r="0"]').onclick = () => (root.innerHTML = "");
+    root.querySelector('[data-r="1"]').onclick = async () => {
+      const onlySub = $("agSub").checked, over = !!(document.getElementById("agOver") || {}).checked;
+      root.innerHTML = "";
+      const upd = {}; let n = 0, nO = 0, nQ = 0, nX = 0;
+      list.forEach((a) => {
+        if (onlySub && !a.submitted) return;
+        if (isManual(a.sid) && !over) return;
+        const res = AutoGrade.gradeStudent(a.form, QS, a.answers || {});
+        Object.values(res).forEach((m) => (m.mark === "O" ? nO++ : m.mark === "?" ? nQ++ : nX++));
+        if (writeMarks(upd, a.sid, res, "keyword")) n++;
+      });
+      try {
+        if (n) await S.update("grades", upd);
+        const root2 = $("modalRoot");
+        root2.innerHTML = `<div class="modal-back"><div class="modal"><h3>자동 채점 완료</h3>
+          <p><b>${n}명</b>을 채점했습니다. 충족 ${nO}개 · 확인 필요 ${nQ}개 · 미충족 ${nX}개</p>
+          <p>상태에서 <b>‘확인 필요(?) 있음’</b>을 고르면 확인할 학생만 모아 볼 수 있습니다. 서술형을 Claude에게 맡기려면 <b>‘Claude 채점용 파일’</b>을 내려받아 대화에 올려 주세요.</p>
+          <div class="actions"><button class="btn primary" data-r="1">확인</button></div></div></div>`;
+        root2.querySelector('[data-r="1"]').onclick = () => (root2.innerHTML = "");
+      } catch (err) { console.error(err); toast("채점 결과를 저장하지 못했습니다. 다시 시도하세요."); }
+    };
+  };
+
+  /* ---------------- Claude 채점용 파일 (이름 없음) ---------------- */
+  $("claudeExpBtn").onclick = () => {
+    const list = rows().filter((a) => !a.missing && a.submitted);
+    if (!list.length) return toast("제출한 학생이 없습니다.");
+    if (!window.XLSX) return toast("엑셀 도구를 불러오지 못했습니다. 새로고침 후 다시 시도하세요.");
+    const mk = (g, qid) => { const ai = g.ai || {}; if ((ai.review || {})[qid]) return "?"; if ((g.checks || {})[qid]) return "O"; if (ai.verdict && qid in ai.verdict) return "X"; return ""; };
+    const out = list.map((a) => {
+      const g = data.grades[a.sid] || {};
+      const r = { "학번": a.sid, "형": a.form };
+      QS.forEach((q) => (r[`${q.no} ${q.title}`] = U.toText(q, (a.answers || {})[q.id])));
+      QS.filter((q) => q.area !== "extra").forEach((q) => (r[`[채점] ${q.no}`] = mk(g, q.id)));
+      QS.filter((q) => q.area !== "extra").forEach((q) => (r[`[근거] ${q.no}`] = ((g.ai || {}).reasons || {})[q.id] || ""));
+      return r;
+    });
+    const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(out);
+    ws["!cols"] = Object.keys(out[0]).map((k) => ({ wch: /^(과정|탐구|기록) /.test(k) ? 40 : /^\[근거\]/.test(k) ? 30 : 10 }));
+    XLSX.utils.book_append_sheet(wb, ws, "채점");
+    const guide = [{ "안내": "이 파일에는 학생 이름이 없습니다. Claude 대화에 올리고 ‘형별 채점 기준표대로 ? 문항을 1차 채점해 줘’라고 요청하세요." },
+      { "안내": "[채점] 열: O 충족 / X 미충족 / ? 확인 필요 / ★ 우수 사례(예: O★). 돌려받은 파일을 교사 화면 ‘채점 결과 불러오기’로 올리면 됩니다." }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(guide), "안내");
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    XLSX.writeFile(wb, `Claude채점용_${stamp}.xlsx`);
   };
 
   /* ---------------- 교사 관리 ---------------- */
@@ -711,7 +788,7 @@
     $("demoReset").onclick = async () => { if (await confirmBox("데모 초기화", "<p>데모 데이터와 이 브라우저의 명렬표를 모두 지웁니다.</p>", "지우기", true)) { S.resetDemo(); try { localStorage.removeItem(RKEY); } catch (e) {} loadRoster(); } };
     $("demoSeed").onclick = async () => {
       const names = ["김민준", "이서연", "박지호", "최하은", "정도윤", "강서진"];
-      const sample = { p1: "해파리와 옥수수 속대를 섞어 식물생장촉진제를 만들고, 비율에 따라 식물 생장 효과와 토양 영향을 알아보는 것이 목적이다.", p2: "촉진제를 3가지 비율과 2가지 형태로 만들고 성분을 분석한 뒤, 스마트팜에서 발아·생장 실험과 토양 분석을 했다.", p3: "3:7 비율이 가장 효과적이었고 7:3 고체형은 오히려 생장을 방해했다.",
+      const sample = { p1: "해파리와 옥수수 속대를 섞어 식물생장촉진제를 만들고, 비율에 따라 식물 생장 효과와 토양 영향을 알아보는 것이 목적이다.", p2: "촉진제를 3가지 비율과 2가지 형태로 만들고 성분을 분석한 뒤, 스마트팜에서 발아·생장 실험과 토양 분석을 했다.", p3: { result: "3:7 비율에서 발아율이 가장 높았고 7:3 고체형은 대조군보다 낮았다.", conclusion: "3:7 촉진제가 가장 효과적이다." },
         q1: "옥수수 속대 비율이 높은 촉진제를 넣으면 씨앗의 발아율이 높아질 것이다.", q2: "해파리:옥수수 속대 비율(7:3, 5:5, 3:7), 촉진제 형태(고체, 액체)", q3: "10일 동안의 정상 발아 종자 수, 발아율, 발아세, 평균 발아 일수", q4: "씨앗 수 50립, 심는 깊이 1cm, 스마트팜의 물·온도·습도·빛",
         q5: ["촉진제를 섞은 배양토를 플랜트 박스에 담는다", "씨앗을 1cm 깊이로 50립씩 심는다", "매일 같은 시간에 발아 개체 수를 10일간 센다", "발아율 등을 계산한다"],
         q6: "가설이 옳다면 3:7 촉진제에서 발아율이 가장 높을 것이다.", q7: ["발아율", "식물 호르몬", "대조군"], q8: "대조군은 촉진제를 넣지 않은 토양으로, 효과를 비교하는 기준이 된다." };
