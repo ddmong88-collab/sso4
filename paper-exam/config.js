@@ -90,12 +90,12 @@ window.EXAM_CONFIG = {
       criterion: "탐구 방법 및 실험 설계를 파악하여 요약하였는가?" },
     { id: "p3", area: "process", no: "과정 ③", scope: "paper", type: "pair", rows: 3,
       fields: [
-        { key: "result", label: "결과", hint: "측정하거나 관찰한 사실 (예: 무엇이 가장 높았는지, 수치가 어떻게 달랐는지)" },
-        { key: "conclusion", label: "결론", hint: "결과의 뜻을 판단한 문장 (‘~을 의미한다’, ‘~을 알 수 있다’, 그래서 무엇이 효과적인지)" }
+        { key: "result", label: "결과", hint: "측정하거나 관찰한 사실" },
+        { key: "conclusion", label: "결론", hint: "결과를 바탕으로 내린 판단" }
       ],
       title: "주요 실험 결과와 결론",
       prompt: "결과와 결론을 나누어 쓰세요. 결과는 실험에서 관찰·측정한 사실이고, 결론은 그 결과로부터 연구자가 내린 판단입니다.",
-      note: "논문에는 결과와 해석이 한 문단에 섞여 있어요. 문장의 성격을 보고 나누세요. 논문의 ‘결과’ 제목 아래 있어도 ‘~을 의미한다’, ‘~을 알 수 있다’처럼 판단하는 문장은 결론 칸에 씁니다.",
+      note: "논문에는 결과와 해석이 한 문단에 섞여 있어요. 문장의 성격을 보고 나누세요.",
       criterion: "주요 실험 결과 및 결론을 요약하였는가?" },
 
     { id: "q1", area: "inquiry", no: "탐구 ①", scope: "focus", type: "text", rows: 3,
