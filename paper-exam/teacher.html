@@ -801,7 +801,7 @@
         ros[sid] = names[i];
         const typed = i === 3 ? "최하늘" : names[i];   // 한 명은 이름을 잘못 입력한 예시
         const ans = {}; Object.keys(sample).forEach((k, j) => { if (j < 6 + i) ans[k] = sample[k]; });
-        upd[sid] = { uid: "seed" + i, sid, cls, no: i + 1, nameHash: await U.nameHash(sid, typed), form: ["A", "B", "C"][i % 3], startedAt: Date.now() - 3e6, updatedAt: Date.now() - 6e5, submitted: i % 2 === 0, submittedAt: i % 2 === 0 ? Date.now() - 6e5 : null, leaveCount: i % 4, answers: ans };
+        upd[sid] = { uid: "seed" + i, sid, cls, no: i + 1, nameHash: await U.nameHash(sid, typed), form: FORMS[i % FORMS.length], startedAt: Date.now() - 3e6, updatedAt: Date.now() - 6e5, submitted: i % 2 === 0, submittedAt: i % 2 === 0 ? Date.now() - 6e5 : null, leaveCount: i % 4, answers: ans };
       }
       ros["10107"] = "윤지우"; ros["10208"] = "한예린";   // 아직 입장하지 않은 학생 예시
       await S.update("answers", upd); saveRoster(ros); toast("가상 학생 답안과 명렬표를 만들었습니다.");

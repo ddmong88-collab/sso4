@@ -36,22 +36,22 @@ window.EXAM_CONFIG = {
     A: {
       label: "A형",
       field: "생물",
-      paperTitle: "해파리와 옥수수 속대를 이용한 식물생장촉진제 제조 및 효과 검증에 관한 연구",
+      paperTitle: "갈조류의 푸코잔틴(Fucoxanthin)이 대추방울토마토 생장에 미치는 영향 탐구",
       source: "제71회 전국과학전람회 출품작 (2025)",
       file: "papers/A.pdf",
-      focusName: "연구 2. 식물생장촉진제에 의한 식물 생장 효과 분석 중 「1) 식물 발아 효과 분석」",
-      focusPages: "실험 방법 12~13쪽, 실험 결과 19~22쪽",
-      jumpPage: 12
+      focusName: "탐구과제 2. 푸코잔틴 용액이 대추방울토마토 생장에 미치는 영향 탐구",
+      focusPages: "실험 설계·방법 11~12쪽, 탐구 결과 13~14쪽",
+      jumpPage: 11
     },
     B: {
       label: "B형",
-      field: "지구 및 환경",
-      paperTitle: "물과 소화기를 대체하는 산불 잔불 진압에 효과적인 친환경 조개껍데기 소화제 개발 연구",
+      field: "생물·화학",
+      paperTitle: "만능 세정제 브로멜린, 효소의 한계에 도전하다",
       source: "제71회 전국과학전람회 출품작 (2025)",
       file: "papers/B.pdf",
-      focusName: "연구 과제 2. 화재 진압 실험",
-      focusPages: "14~18쪽",
-      jumpPage: 14
+      focusName: "기초 탐구 [탐구과제 2] 브로멜린의 농도 의존성 탐구",
+      focusPages: "11~13쪽",
+      jumpPage: 11
     },
     C: {
       label: "C형",
@@ -62,6 +62,16 @@ window.EXAM_CONFIG = {
       focusName: "과제2. 이중기둥의 충격 흡수 성능에 관한 탐구",
       focusPages: "17~21쪽",
       jumpPage: 17
+    },
+    D: {
+      label: "D형",
+      field: "화학",
+      paperTitle: "해조류의 중금속 흡착률 비교 및 폐해조류를 활용한 샤워기 필터 볼 제작",
+      source: "제70회 전국과학전람회 출품작 (2024)",
+      file: "papers/D.pdf",
+      focusName: "4. 연구 과정 및 결과 중 「나. 해조류의 중금속 흡착률 비교」",
+      focusPages: "18~23쪽",
+      jumpPage: 18
     }
   },
 
