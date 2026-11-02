@@ -232,7 +232,7 @@
       card.className = "card q-card " + q.area; card.id = "q-" + q.id;
       card.innerHTML = `<div class="q-head"><span class="q-no">${U.esc(q.no)}</span><span class="q-title">${U.esc(q.title)}</span>
         <span class="scope ${q.scope}">${q.scope === "focus" ? "지정 실험" : "논문 전체"}</span></div>
-        <p class="q-prompt">${U.esc(q.prompt)}</p><div class="q-body"></div>`;
+        <p class="q-prompt">${U.esc(q.prompt)}</p>${q.note ? `<p class="q-note">※ ${U.esc(q.note)}</p>` : ""}<div class="q-body"></div>`;
       const body = card.querySelector(".q-body");
       if (q.type === "text") {
         body.innerHTML = `<textarea class="input" rows="${q.rows || 4}" data-q="${q.id}"></textarea><div class="q-foot"><span class="cnt">0자</span></div>`;
