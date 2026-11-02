@@ -127,7 +127,7 @@ button { cursor: pointer; }
 .step-row { display: flex; gap: 6px; align-items: flex-start; }
 .step-row .n { width: 26px; height: 26px; margin-top: 6px; border-radius: 50%; background: var(--brand-2); color: var(--brand-ink); font-weight: 700; font-size: 12.5px; display: grid; place-items: center; flex: none; }
 .step-row textarea { flex: 1; min-height: 40px !important; height: 40px; }
-.kw { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kw { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .submit-bar { margin-top: 18px; padding: 16px; display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
 .locked textarea, .locked input { background: #f3f4f2; }
 .leave-banner { background: var(--warn-bg); color: var(--warn); font-size: 13px; padding: 6px 18px; border-bottom: 1px solid #f3dcb5; }

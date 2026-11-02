@@ -276,12 +276,13 @@
           body.appendChild(wrap);
         });
       } else if (q.type === "keywords") {
-        const arr = Array.isArray(st.answers[q.id]) ? st.answers[q.id].slice() : ["", "", ""];
-        while (arr.length < 3) arr.push("");
+        const n = q.count || 3;
+        const arr = Array.isArray(st.answers[q.id]) ? st.answers[q.id].slice(0, n) : [];
+        while (arr.length < n) arr.push("");
         body.innerHTML = '<div class="kw"></div>';
-        arr.slice(0, 3).forEach((v, i) => {
+        arr.forEach((v, i) => {
           const inp = document.createElement("input"); inp.className = "input"; inp.placeholder = "개념 " + (i + 1); inp.value = v;
-          inp.addEventListener("input", () => { arr[i] = inp.value; st.answers[q.id] = arr.slice(0, 3); changed(); });
+          inp.addEventListener("input", () => { arr[i] = inp.value; st.answers[q.id] = arr.slice(0, n); changed(); });
           body.firstChild.appendChild(inp);
         });
       }
