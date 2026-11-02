@@ -281,7 +281,7 @@
         while (arr.length < n) arr.push("");
         body.innerHTML = '<div class="kw"></div>';
         arr.forEach((v, i) => {
-          const inp = document.createElement("input"); inp.className = "input"; inp.placeholder = "개념 " + (i + 1); inp.value = v;
+          const inp = document.createElement("input"); inp.className = "input"; inp.placeholder = "개념 " + (i + 1) + (i > 0 ? " (선택)" : ""); inp.value = v;
           inp.addEventListener("input", () => { arr[i] = inp.value; st.answers[q.id] = arr.slice(0, n); changed(); });
           body.firstChild.appendChild(inp);
         });

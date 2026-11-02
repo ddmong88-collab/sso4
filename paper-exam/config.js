@@ -123,7 +123,7 @@ window.EXAM_CONFIG = {
       criterion: "가설과 변인에 근거한 예상 결과와 결론을 과학적으로 서술하였는가?" },
     { id: "q7", area: "inquiry", no: "탐구 ⑦", scope: "paper", type: "keywords", count: 2,
       title: "핵심 과학 개념",
-      prompt: "이 연구를 이해하는 데 꼭 필요한 핵심 과학 개념(용어)을 2개 쓰세요.",
+      prompt: "이 연구를 이해하는 데 꼭 필요한 핵심 과학 개념(용어)을 1개 이상 쓰세요. 두 번째 칸은 선택입니다.",
       criterion: "선행연구자료에 관련된 핵심 과학 개념을 파악하여 서술하였는가?" },
     { id: "q8", area: "inquiry", no: "탐구 ⑧", scope: "paper", type: "text", rows: 5,
       title: "핵심 과학 개념 설명",
