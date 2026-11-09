@@ -181,6 +181,12 @@
       const R = RULES[form]; if (!R) return {};
       const out = {};
       questions.filter((q) => q.area !== "extra").forEach((q) => { const r = gradeOne(R[q.id], q, (answers || {})[q.id]); if (r) out[q.id] = r; });
+      /* 탐구 ⑦: 목록에 없는 개념이라도 논문에 있는 개념을 탐구 ⑧에서 옳게 설명했다면 충족 → 미충족 대신 교사 확인으로 넘김 */
+      const q8 = String((answers || {}).q8 || "").trim();
+      if (out.q7 && out.q7.mark === "X" && q8.length >= 10) {
+        const kw = ((answers || {}).q7 || []).filter((x) => String(x || "").trim()).join(", ");
+        if (kw) out.q7 = { mark: "?", why: `목록에 없는 개념(‘${kw.slice(0, 20)}’) · 논문에 있는 개념이고 탐구 ⑧에서 옳게 설명했으면 충족` };
+      }
       return out;
     }
   };
