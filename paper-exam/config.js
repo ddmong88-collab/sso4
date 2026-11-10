@@ -76,28 +76,11 @@ window.EXAM_CONFIG = {
   },
 
   /* 7) 문항 (평가계획서 채점기준과 1:1 대응)
-   *    area: process(과정 10점) / inquiry(탐구 25점) / extra(채점 제외)
+   *    area: inquiry(탐구 25점) / extra(채점 제외)
+   *    ※ 과정 10점(논문 요약)은 오픈북 과제로 따로 평가하므로 웹앱에는 탐구 ①~⑧만 있습니다.
    *    scope: paper(논문 전체) / focus(지정 실험)
    *    type: text / steps / keywords */
   questions: [
-    { id: "p1", area: "process", no: "과정 ①", scope: "paper", type: "text", rows: 4,
-      title: "연구 목적과 연구 문제",
-      prompt: "이 연구가 무엇을 알아보려고 했는지(연구 목적)와 해결하려는 문제를 2~3문장으로 요약하세요.",
-      criterion: "연구자료의 탐구 목적 및 연구 문제를 파악하여 요약하였는가?" },
-    { id: "p2", area: "process", no: "과정 ②", scope: "paper", type: "text", rows: 5,
-      title: "탐구 방법과 실험 설계",
-      prompt: "연구자들이 어떤 실험들을 어떤 순서로 진행했는지, 논문 전체의 탐구 방법과 실험 설계를 요약하세요.",
-      criterion: "탐구 방법 및 실험 설계를 파악하여 요약하였는가?" },
-    { id: "p3", area: "process", no: "과정 ③", scope: "paper", type: "pair", rows: 3,
-      fields: [
-        { key: "result", label: "결과", hint: "측정하거나 관찰한 사실" },
-        { key: "conclusion", label: "결론", hint: "결과를 바탕으로 내린 판단" }
-      ],
-      title: "주요 실험 결과와 결론",
-      prompt: "결과와 결론을 나누어 쓰세요. 결과는 실험에서 관찰·측정한 사실이고, 결론은 그 결과로부터 연구자가 내린 판단입니다.",
-      note: "논문에는 결과와 해석이 한 문단에 섞여 있어요. 문장의 성격을 보고 나누세요.",
-      criterion: "주요 실험 결과 및 결론을 요약하였는가?" },
-
     { id: "q1", area: "inquiry", no: "탐구 ①", scope: "focus", type: "text", rows: 3,
       title: "탐구 가설",
       prompt: "지정 실험의 가설을 '~하면 ~할 것이다' 형태로 쓰세요. 논문에 가설이 직접 쓰여 있지 않다면 연구 목적과 실험 설계를 바탕으로 찾아 쓰세요.",
@@ -137,11 +120,9 @@ window.EXAM_CONFIG = {
       criterion: "" }
   ],
 
-  /* 8) 점수표 (평가계획서 기준) */
+  /* 8) 점수표 (평가계획서 탐구 25점 기준)
+   *    미응시·백지, 장기 미인정 결석은 영역(35점) 기본 점수라서 웹앱에서는 표시만 하고 점수는 비워 둡니다. */
   scoring: {
-    process: { 3: 10, 2: 8, 1: 6, 0: 4 },          // 과정 3개 기준
-    inquiry: { 8: 25, 7: 23, 6: 21, 5: 19, 4: 17, 3: 15, 2: 13, 1: 11, 0: 9 },
-    blank: 11,      // 본인 의사로 미응시, 백지 제출 (기본 점수)
-    absent: 10      // 장기 미인정 결석
+    inquiry: { 8: 25, 7: 23, 6: 21, 5: 19, 4: 17, 3: 15, 2: 13, 1: 11, 0: 9 }
   }
 };

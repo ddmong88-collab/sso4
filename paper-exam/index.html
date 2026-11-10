@@ -225,7 +225,7 @@
 
     const list = $("qList"); list.innerHTML = "";
     let lastArea = null;
-    const areaName = { process: "과정 (10점) · 논문 전체를 읽고 요약하기", inquiry: "탐구 (25점) · 가설·변인·실험 과정 분석하기", extra: "기타" };
+    const areaName = { inquiry: "탐구 (25점) · 가설·변인·실험 과정 분석하기", extra: "기타" };
     C.questions.forEach((q) => {
       if (q.area !== lastArea) { const h = document.createElement("div"); h.className = "sec-title"; h.textContent = areaName[q.area]; list.appendChild(h); lastArea = q.area; }
       const card = document.createElement("div");

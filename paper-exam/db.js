@@ -124,12 +124,9 @@
     /* 채점 체크 → 점수 */
     score(checks, special) {
       const S = C.scoring; checks = checks || {};
-      if (special === "blank") return { process: null, inquiry: null, total: S.blank, pc: 0, ic: 0 };
-      if (special === "absent") return { process: null, inquiry: null, total: S.absent, pc: 0, ic: 0 };
-      const pc = C.questions.filter((q) => q.area === "process" && checks[q.id]).length;
+      if (special === "blank" || special === "absent") return { inquiry: null, ic: 0, special };
       const ic = C.questions.filter((q) => q.area === "inquiry" && checks[q.id]).length;
-      const process = S.process[pc], inquiry = S.inquiry[ic];
-      return { process, inquiry, total: process + inquiry, pc, ic };
+      return { inquiry: S.inquiry[ic], ic, special: "" };
     },
     fmtTime(ts) {
       if (!ts || typeof ts !== "number") return "";
