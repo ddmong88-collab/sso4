@@ -112,12 +112,7 @@ window.EXAM_CONFIG = {
     { id: "q8", area: "inquiry", no: "탐구 ⑧", scope: "paper", type: "text", rows: 5,
       title: "핵심 과학 개념 설명",
       prompt: "탐구 ⑦에서 쓴 개념 중 1개 이상을 골라 뜻을 설명하고, 이 연구에서 어떻게 쓰였는지 연결하여 쓰세요.",
-      criterion: "핵심 과학 개념을 올바르게 설명하고 서술하였는가?" },
-
-    { id: "ai", area: "extra", no: "기록", scope: "paper", type: "text", rows: 2,
-      title: "AI·자료 활용 기록 (선택, 채점 제외)",
-      prompt: "AI나 다른 자료를 활용했다면 사용한 도구, 질문 내용, 출처를 쓰세요. 활용하지 않았다면 비워 두세요.",
-      criterion: "" }
+      criterion: "핵심 과학 개념을 올바르게 설명하고 서술하였는가?" }
   ],
 
   /* 8) 점수표 (평가계획서 탐구 25점 기준)
